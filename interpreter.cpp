@@ -98,37 +98,20 @@ string eval(string str){
 }
 
 Php::Value calc(Php::Parameters &params){
-    auto $events = params[0];
+    /*auto $events = params[0];
     auto $code = params[1];
 
     vector<string> $primary_event_selectors = {"before", "after", "around", "skip"};
-    vector<string> $predefined_vars;
+
+    map<string, string> $predefined_vars = {{"tid", "typeId"}, {"qid", "qualifierId"}};
+
+    map<string, string> $operands = {{"!=", "!="}, {">=", ">="}, {"<=", "<="}, {"=", "=="}, {">", ">"}, {"<", "<"}};
+
+    vector<map<string, string>> $collection = {};
+    Php::Value $lol;
+    $lol[0] = "lol";*/
 
     return params[0];
-
-    /*
-    $primary_event_selectors = [
-            'before',
-            'after',
-            'around',
-            'skip'
-        ];
-
-        $predefined_vars = [
-            'tid' => 'typeId',
-            'qid' => 'qualifierId'
-        ];
-
-        // broader terms must be put later
-        $operands = [
-            '!=' => '!=',
-            '>=' => '>=',
-            '<=' => '<=',
-            '=' => '==',
-            '>' => '>',
-            '<' => '<',
-        ];
-    */
 }
 
 int main()
