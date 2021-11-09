@@ -12,6 +12,8 @@ Write your code in this editor and press "Run" button to compile and execute it.
 #include <vector>
 #include <chrono>
 
+#include <phpcpp.h>
+
 using namespace std;
 using namespace std::chrono;
 
@@ -63,13 +65,13 @@ void clean(string &str){
     for(auto elem : str)
         temp += tolower(elem,loc);
     str = temp;
-    
+
     // trim
     while(str.compare(0,1," ")==0)
         str.erase(str.begin()); // remove leading whitespaces
     while(str.size()>0 && str.compare(str.size()-1,1," ")==0)
         str.erase(str.end()-1); // remove trailing whitespaces
-    
+
     // remove excess whitespaces
     size_t pos = str.find("  ");
     while(pos != string::npos) {
@@ -80,7 +82,7 @@ void clean(string &str){
 
 string eval(string str){
     clean(str);
-    
+
     while(str.find("(") != string::npos){
         // find last "("
         size_t pos_start = str.find_last_of("(");
@@ -91,12 +93,42 @@ string eval(string str){
         str.replace(pos_start, pos_end-pos_start+1, " "+eval_exp(str.substr(pos_start+1, pos_end-pos_start-1)+" "));
         clean(str);
     }
-    
+
     return eval_exp(str);
 }
 
-auto calc(){
-    return true;
+Php::Value calc(Php::Parameters &params){
+    auto $events = params[0];
+    auto $code = params[1];
+
+    vector<string> $primary_event_selectors = {"before", "after", "around", "skip"};
+    vector<string> $predefined_vars;
+
+    return params[0];
+
+    /*
+    $primary_event_selectors = [
+            'before',
+            'after',
+            'around',
+            'skip'
+        ];
+
+        $predefined_vars = [
+            'tid' => 'typeId',
+            'qid' => 'qualifierId'
+        ];
+
+        // broader terms must be put later
+        $operands = [
+            '!=' => '!=',
+            '>=' => '>=',
+            '<=' => '<=',
+            '=' => '==',
+            '>' => '>',
+            '<' => '<',
+        ];
+    */
 }
 
 int main()

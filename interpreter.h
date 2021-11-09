@@ -1,1 +1,1 @@
-auto calc();
+Php::Value calc();
