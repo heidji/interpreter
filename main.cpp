@@ -9,11 +9,17 @@
 using namespace std;
 using namespace std::chrono;
 
-void trim(string str){
+bool is_numeric(string s){
+    return !s.empty() && s.find_first_not_of("-.0123456789") == std::string::npos;
+}
+
+string trim(string str){
     while(str.compare(0,1," ")==0)
         str.erase(str.begin()); // remove leading whitespaces
     while(str.size()>0 && str.compare(str.size()-1,1," ")==0)
         str.erase(str.end()-1); // remove trailing whitespaces
+
+    return str;
 }
 
 vector<string> explode(string delim, string s)
@@ -21,7 +27,7 @@ vector<string> explode(string delim, string s)
     vector<string> result;
 
     int temp;
-    while (s.find(delim) != string::npos)
+    while (s.find(delim) != string::npos && !delim.empty())
     {
         temp = s.find(delim);
         result.push_back(s.substr(0, temp));
@@ -32,20 +38,22 @@ vector<string> explode(string delim, string s)
     return result;
 }
 
-vector<string> trim_explode(string delim, string s)
+Php::Value trim_explode(string delim, string s)
 {
+    Php::Value res;
     vector<string> result;
 
     int temp;
-    while (s.find(delim) != string::npos)
+    while (s.find(delim) != string::npos && !delim.empty())
     {
         temp = s.find(delim);
-        result.push_back(s.substr(0, temp));
-        trim(s.replace(0, temp+delim.length(), ""));
+        result.push_back(trim(s.substr(0, temp)));
+        s.replace(0, temp+delim.length(), "");
     }
-    result.push_back(s);
+    result.push_back(trim(s));
+    res = result;
 
-    return result;
+    return res;
 }
 
 string eval_exp(string str){
@@ -82,7 +90,7 @@ void clean(string &str){
     str = temp;
 
     // trim
-    trim(str);
+    str = trim(str);
 
     // remove excess whitespaces
     size_t pos = str.find("  ");
@@ -109,6 +117,57 @@ string eval(string str){
     return eval_exp(str);
 }
 
+// Php::Value keeps em sorted
+string operands(string str){
+    if(str.find("!=") != string::npos){
+        return "!=";
+    }else if(str.find(">=") != string::npos){
+        return ">=";
+    }else if(str.find("<=") != string::npos){
+        return "<=";
+    }else if(str.find("=") != string::npos){
+        return "=";
+    }else if(str.find(">") != string::npos){
+        return ">";
+    }else if(str.find("<") != string::npos){
+        return "<";
+    }
+    return NULL;
+};
+
+bool testConditions(string &name, Php::Value &conditions, Php::Value &e, Php::Value &q, string &primary){
+    Php::Value conditions;
+    string op;
+    string var;
+    string val;
+    Php::Value args;
+    Php::Value sides;
+
+    conditions = trim_explode(",", conditions[name]);
+
+    for (auto&& [i, condition] : conditions){
+        op = operands(condition);
+        sides = trim_explode(op, condition);
+        // NOT condition
+        string sides_s = sides[0];
+        if(sides_s.find_first_of('!') == 0){
+        }else{
+            // abstract
+            if(sides_s.find_first_of('.') == 0){
+                args = trim_explode(".", sides_s);
+                for (auto&& [j, arg] : args){
+                    string arg_s = arg;
+                    if(arg_s == name)
+                        continue;
+
+                }
+            }
+        }
+    }
+    //op = operands(c);
+    return false;
+}
+
 Php::Value interpreter(Php::Parameters &params)
 {
     auto $events = params[0];
@@ -118,21 +177,67 @@ Php::Value interpreter(Php::Parameters &params)
 
     map<string, string> $predefined_vars = {{"tid", "typeId"}, {"qid", "qualifierId"}};
 
-    map<string, string> $operands = {{"!=", "!="}, {">=", ">="}, {"<=", "<="}, {"=", "=="}, {">", ">"}, {"<", "<"}};
-
     Php::Value $collection;
+    Php::Value $q;
     Php::Value $empty;
     Php::Value $temp;
+
+    vector<string> $all_i;
+
+    Php::Value $args;
+    Php::Value $sides;
 
     for (auto&& [$step, $event] : $events) {
         for (auto&& [$i_event_name, $code_blocks] : $code){
             for (auto&& [$block, $instruction] : $code_blocks){
-                for (auto&& [$c, $condition] : $instruction["conditions"]){
-                    Php::Value $args = trim_explode(",", $condition);
-                    for (auto&& [$x, $arg] : $args){
-
-                    }
+                $all_i = {};
+                string $primary;
+                for (auto&& [k, v] : $instruction["conditions"]){
+                    $all_i.push_back(k);
                 }
+                if ($instruction["primary"] != NULL)
+                    string $primary = $instruction["primary"];
+                else
+                    string $primary = $all_i[0];
+                $q[$primary] = $event;
+                return $q;
+                /*for (auto&& [$c, $condition] : $instruction["conditions"]){
+                    $args = trim_explode(",", $condition);
+                    for (auto&& [$x, $argz] : $args){
+                        string $arg = $argz;
+                        $temp = operands($arg);
+                        string $operand = $temp["operand"];
+                        string $replace = $temp["replace"];
+                        $sides = trim_explode($operand, $arg);
+                        for (auto&& [$i, $sidez] : $sides){
+                            string $side = $sidez;
+                            if (!is_numeric($side) && $side.find(".") != string::npos) {
+                                return $arg;
+                                $temp = explode(".", $side);
+                                return $temp;
+                                /*$var = $temp.pop_back();
+                                return $var;
+                            }
+                        }*/
+
+                        /*foreach ($sides as $i => $side) {
+                                                    if (!is_numeric($side) && strpos($side, '.') !== false) {
+                                                        $temp = explode('.', $side);
+                                                        $var = array_splice($temp, -1)[0];
+                                                        if (isset($predefined_vars[$var]))
+                                                            $var = $predefined_vars[$var];
+                                                        $sides[$i] = implode('.', $temp) . '.' . $var;
+                                                    } elseif($i == 1 && !is_numeric($side) && strpos($side, ' sec') === false && strpos($side, 'null') === false && $sides[0] != 'skip') {
+                                                        // assume constant
+                                                        $sides[$i] = '"'.$side.'"';
+                                                    } else {
+                                                        if (isset($predefined_vars[$side]))
+                                                            $sides[$i] = $predefined_vars[$side];
+                                                    }
+                                                }
+                                                $args[$x] = implode($operand, $sides);*/
+                    //}
+                //}
             }
         }
     }
