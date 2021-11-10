@@ -2,6 +2,7 @@
 #include <string>
 #include <locale>
 #include <vector>
+#include <algorithm>
 #include <chrono>
 
 #include <phpcpp.h>
@@ -117,7 +118,6 @@ string eval(string str){
     return eval_exp(str);
 }
 
-// Php::Value keeps em sorted
 string operands(string str){
     if(str.find("!=") != string::npos){
         return "!=";
@@ -135,22 +135,105 @@ string operands(string str){
     return NULL;
 };
 
-bool testConditions(string &name, Php::Value &conditions, Php::Value &e, Php::Value &q, string &primary){
+bool eval_with_op(string left, string right, string op){
+    if(op == "=")
+        return left == right;
+    else if(op == "!=")
+        return left != right;
+    else if(op == ">")
+        return left > right;
+    else if(op == "<")
+        return left < right;
+    else if(op == ">=")
+        return left >= right;
+    else if(op == "<=")
+        return left <= right;
+    return false;
+}
 
-    string left, right, op;
-    Php::Value args, sides, q_sides, cond, q_cond, qual;
+bool in_array(string needle, vector<string> haystack){
+    return count(haystack.begin(), haystack.end(), needle);
+}
+
+bool findEvent(string &name, Php::Value &conditions, int index, Php::Value events, Php::Value &q, string &primary, vector<string> all_i, int it = 0){
+
+    it++;
+    if(it > all_i.size() + 10)
+        throw std::invalid_argument("circular reference");
+    // also checks for testConditions
+    return false;
+}
+
+bool isEventCondition(string &name, Php::Value &conditions){
+    vector<string> $primary_event_selectors = {"before", "after", "around", "skip"};
+    string temp = conditions[name];
+
+    for (string selector : $primary_event_selectors){
+        if(temp.find_first_of(selector) != std::string::npos)
+            return true;
+    }
+    return false;
+}
+
+bool testEventQualifierConditions(string &name, string &qname, Php::Value &conditions, Php::Value &q){
+    Php::Value qualifier = q[name]["qualifier"];
+    Php::Value args = trim_explode(",", conditions[qname]);
+
+    for (auto&& [i, qual] : qualifier){
+        for (auto&& [ii, arg] : args){
+            string arg_s = arg;
+            string op = operands(arg_s);
+            Php::Value sides = trim_explode(op, arg_s);
+            string left_t = sides[0];
+            if(left_t == "qid")
+                left_t = "qualifierId";
+            string left = qual[left_t];
+            string right = sides[1];
+            if(!eval_with_op(left, right, op)){
+                goto cnt;
+            }
+        }
+        // passed all wow
+        q[name+"."+qname] = qual;
+        return true;
+        cnt:;
+    }
+    q[name+"."+qname] = false;
+    return false;
+}
+
+bool testConditions(string &name, Php::Value &conditions, int index, Php::Value events, Php::Value &q, string &primary, vector<string> all_i, int it = 0){
+
+    string left, right, op, q_op;
+    Php::Value args, q_args, sides, q_sides, cond, q_cond, qual, q_qual;
 
     cond = trim_explode(",", conditions[name]);
 
+    // put the event in q so we can use it onwards
+    q[name] = events[index];
     for (auto&& [i, condition] : cond){
         op = operands(condition);
         sides = trim_explode(op, condition);
         // NOT condition
         string side_s = sides[0];
         if(side_s.find_first_of('!') == 0){
+            // has to be a qualifier identifier
+            Php::Value temp = trim_explode(".", side_s);
+            string neg_qual = temp[0];
+            neg_qual.erase(0, 1);
+            if(testEventQualifierConditions(name, neg_qual, conditions, q)){
+                string left_t = temp[1];
+                string right = sides[0];
+                string left = q[name+"."+neg_qual][left_t];
+                // TODO add more cases for abstract right hand side stuff (probably pointless)
+                if(eval_with_op(left, right, op)){
+                    q[name] = false;
+                    return false;
+                }
+            }
         }else{
             // abstract
-            if(side_s.find_first_of('.') == 0){
+            if(side_s.find_first_of('.') != std::string::npos){
                 args = trim_explode(".", side_s);
                 for (auto&& [j, arg] : args){
                     string arg_s = arg;
@@ -158,30 +241,98 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value &e, Php::Va
                         continue;
                     if(q[name+"."+arg_s] == NULL){
                         q_cond = trim_explode(",", conditions[arg_s]);
-                        qual = e["qualifier"];
+                        qual = events[index]["qualifier"];
                         for (auto&& [jj, qualifier] : qual){
-                            for (auto&& [jjj, condition] : q_cond){
-
+                            for (auto&& [jjj, q_condition] : q_cond){
+                                q_op = operands(q_condition);
+                                q_sides = trim_explode(q_op, q_condition);
+                                string q_left_temp_s = q_sides[0];
+                                string q_right_s = q_sides[1];
+                                // check if right side is defined
+                                if(!is_numeric(q_right_s)){
+                                    // is instruction
+                                    if (in_array(q_right_s, all_i)){
+                                        if(q[q_right_s] == NULL){
+                                            // check if maybe the right hand side is own qualifier or foreign
+                                            if(q_right_s.find_first_of('.') != std::string::npos){
+                                                q_args = trim_explode(".", q_right_s);
+                                                for (auto&& [jjjj, q_arg] : q_args){
+                                                    string q_arg_s = q_arg;
+                                                    if(q_arg_s == name)
+                                                        continue;
+                                                    if(isEventCondition(q_arg_s, conditions)){
+                                                        if(q[q_arg_s] == NULL)
+                                                            findEvent(q_arg_s, conditions, index, events, q, primary, all_i, it);
+                                                        if(q[q_arg_s] == false){
+                                                            q[name] = false;
+                                                            return false;
+                                                        }
+                                                    }else{
+                                                        // if the event is there, then it can be tested for qualifiers
+                                                        if(q[q_right_s] == NULL){
+                                                            string temp = q_args[0];
+                                                            testEventQualifierConditions(temp, q_right_s, conditions, q);
+                                                        }else if(q[q_right_s] == false){
+                                                            q[name] = false;
+                                                            return false;
+                                                        }
+                                                    }
+                                                }
+                                            }else{
+                                                // is own qualifier
+                                            }
+                                        }else if(q[q_right_s] == false){
+                                            q[name] = false;
+                                        }
+                                    }
+                                }
+                                string q_left_s = qual[q_left_temp_s];
+                                if(q_left_s == "qid")
+                                    q_left_s = "qualifierId";
+                                if(!eval_with_op(q_left_s, q_right_s, q_op)){
+                                    goto break_qual;
+                                }
                             }
+                            // passed all
+                            if(name == primary){
+                                q[arg_s] = qualifier;
+                            }
+                            q[name+"."+arg_s] = qualifier;
+                            break_qual:;
+                        }
+                    }else{
+                        if(q[name+"."+arg_s] == false){
+                            return false;
                         }
                     }
                 }
             }else{
-                string left = e[side_s];
+                string left = q[name][side_s];
+                // check if right side another abstract value
+                string right_s = sides[1];
+                // abstract
+                if(!is_numeric(right_s) && right_s.find_first_of('.') != std::string::npos){
+                    args = trim_explode(".", side_s);
+                    for (auto&& [j, arg] : args){
+                        // TODO later because the exact same routine is up there. better create a function for that
+                    }
+                }else{
+                    if(!eval_with_op(left, right_s, op)){
+                        q[name] = false;
+                        return false;
+                    }
+                }
             }
         }
     }
-    return false;
+    // passed all checks
+    return true;
 }
 
 Php::Value interpreter(Php::Parameters &params)
 {
     auto $events = params[0];
     auto $code = params[1];
-
-    vector<string> $primary_event_selectors = {"before", "after", "around", "skip"};
-
-    map<string, string> $predefined_vars = {{"tid", "typeId"}, {"qid", "qualifierId"}};
 
     Php::Value $collection;
     Php::Value $q;
@@ -195,6 +346,7 @@ Php::Value interpreter(Php::Parameters &params)
 
     for (auto&& [$step, $event] : $events) {
         for (auto&& [$i_event_name, $code_blocks] : $code){
+            $q = $empty;
             for (auto&& [$block, $instruction] : $code_blocks){
                 $all_i = {};
                 string $primary;
@@ -207,57 +359,9 @@ Php::Value interpreter(Php::Parameters &params)
                     string $primary = $all_i[0];
                 $q[$primary] = $event;
                 return $q;
-                /*for (auto&& [$c, $condition] : $instruction["conditions"]){
-                    $args = trim_explode(",", $condition);
-                    for (auto&& [$x, $argz] : $args){
-                        string $arg = $argz;
-                        $temp = operands($arg);
-                        string $operand = $temp["operand"];
-                        string $replace = $temp["replace"];
-                        $sides = trim_explode($operand, $arg);
-                        for (auto&& [$i, $sidez] : $sides){
-                            string $side = $sidez;
-                            if (!is_numeric($side) && $side.find(".") != string::npos) {
-                                return $arg;
-                                $temp = explode(".", $side);
-                                return $temp;
-                                /*$var = $temp.pop_back();
-                                return $var;
-                            }
-                        }*/
-
-                        /*foreach ($sides as $i => $side) {
-                                                    if (!is_numeric($side) && strpos($side, '.') !== false) {
-                                                        $temp = explode('.', $side);
-                                                        $var = array_splice($temp, -1)[0];
-                                                        if (isset($predefined_vars[$var]))
-                                                            $var = $predefined_vars[$var];
-                                                        $sides[$i] = implode('.', $temp) . '.' . $var;
-                                                    } elseif($i == 1 && !is_numeric($side) && strpos($side, ' sec') === false && strpos($side, 'null') === false && $sides[0] != 'skip') {
-                                                        // assume constant
-                                                        $sides[$i] = '"'.$side.'"';
-                                                    } else {
-                                                        if (isset($predefined_vars[$side]))
-                                                            $sides[$i] = $predefined_vars[$side];
-                                                    }
-                                                }
-                                                $args[$x] = implode($operand, $sides);*/
-                    //}
-                //}
             }
         }
     }
-
-
-    //how to loop in C i guess
-     /*for ( int i = 0; i < $collection.size( ) ; i++ ) {
-        $temp = $collection[i];
-        for (auto&& [key, val] : $temp)
-        {
-            $temp[key] = "LOL";
-            $collection[i] = $temp;
-        }
-    }*/
 
     return $collection;
 }
