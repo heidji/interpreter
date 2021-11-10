@@ -136,35 +136,41 @@ string operands(string str){
 };
 
 bool testConditions(string &name, Php::Value &conditions, Php::Value &e, Php::Value &q, string &primary){
-    Php::Value conditions;
-    string op;
-    string var;
-    string val;
-    Php::Value args;
-    Php::Value sides;
 
-    conditions = trim_explode(",", conditions[name]);
+    string left, right, op;
+    Php::Value args, sides, q_sides, cond, q_cond, qual;
 
-    for (auto&& [i, condition] : conditions){
+    cond = trim_explode(",", conditions[name]);
+
+    for (auto&& [i, condition] : cond){
         op = operands(condition);
         sides = trim_explode(op, condition);
         // NOT condition
-        string sides_s = sides[0];
-        if(sides_s.find_first_of('!') == 0){
+        string side_s = sides[0];
+        if(side_s.find_first_of('!') == 0){
         }else{
             // abstract
-            if(sides_s.find_first_of('.') == 0){
-                args = trim_explode(".", sides_s);
+            if(side_s.find_first_of('.') == 0){
+                args = trim_explode(".", side_s);
                 for (auto&& [j, arg] : args){
                     string arg_s = arg;
                     if(arg_s == name)
                         continue;
+                    if(q[name+"."+arg_s] == NULL){
+                        q_cond = trim_explode(",", conditions[arg_s]);
+                        qual = e["qualifier"];
+                        for (auto&& [jj, qualifier] : qual){
+                            for (auto&& [jjj, condition] : q_cond){
 
+                            }
+                        }
+                    }
                 }
+            }else{
+                string left = e[side_s];
             }
         }
     }
-    //op = operands(c);
     return false;
 }
 
