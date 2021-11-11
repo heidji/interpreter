@@ -18,8 +18,6 @@ bool is_numeric(string s){
 
 int strtotime(string date)
 {
-
-
     stringstream yearValue(date.substr(0, 4));
     int year;
     yearValue >> year;
@@ -39,7 +37,7 @@ int strtotime(string date)
     int sec;
     secValue >> sec;
 
-    return (((year*365+month*30+day)*24+hour)*60+min)*60+sec;
+    return ((((year*12+month)*30+day)*24+hour)*60+min)*60+sec;
 }
 
 string trim(string str){
@@ -197,7 +195,14 @@ bool isEventCondition(string &name, Php::Value &conditions){
 // declare
 bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int index, int primary_index, Php::Value &events, Php::Value &q, string &primary, vector<string> &all_i, vector<string> &it);
 
-bool findEvent(string &name, Php::Value &skips, Php::Value &conditions, int primary_index, int index, Php::Value &events, Php::Value &q, string &primary, vector<string> &all_i, vector<string> &it){
+bool looper(int which, int s, int times, int j, int end){
+    if(which == 1)
+        return (s <= times && j <= end);
+    else
+        return (s <= times && j >= end);
+}
+
+bool findEvent(string &name, Php::Value &skipsets, Php::Value &conditions, int primary_index, int index, Php::Value &events, Php::Value &q, string &primary, vector<string> &all_i, vector<string> &it){
 
     if(in_array(name, it))
         throw std::invalid_argument("circular reference");
@@ -209,8 +214,9 @@ bool findEvent(string &name, Php::Value &skips, Php::Value &conditions, int prim
     int i;
     int j;
     int s;
+    Php::Value skips;
 
-    string selector, within_type;
+    string selector, within_type, skipstop;
     Php::Value event = events[primary_index];
 
     string condition = conditions[name];
@@ -234,7 +240,7 @@ bool findEvent(string &name, Php::Value &skips, Php::Value &conditions, int prim
                 direction = 1;
             Php::Value temp = trim_explode("=", rule);
             // TODO: throw error if not present
-            if(rule.find("around") != std::string::npos)
+            if(selector != "around")
                 int times = temp[1];
             else {
                 times = 1; // in around there's no xth match, always first
@@ -274,7 +280,6 @@ bool findEvent(string &name, Php::Value &skips, Php::Value &conditions, int prim
         }
     }
 
-    // CURRENT WORK
     start = step + direction;
 
     if (within != NULL) {
@@ -292,131 +297,154 @@ bool findEvent(string &name, Php::Value &skips, Php::Value &conditions, int prim
             if(events[end] != NULL && abs(temp_a - temp_c) > within)
                 start = step;
         }
-    } /*else {
-        if ($direction == -1)
-            $end = 0;
+    } else {
+        if (direction == -1)
+            end = 0;
         else
-            $end = count($events) - 1;
+            end = events.size() - 1;
     }
-    if ($end > count($events) - 1)
-        $end = count($events) - 1;
-    elseif ($end < 0)
-        $end = 0;
-    if ($start > count($events) - 1)
-        $start = count($events) - 1;
-    elseif ($start < 0)
-        $start = 0;
+    if (end > events.size() - 1)
+        end = events.size() - 1;
+    else if (end < 0)
+        end = 0;
+    if (start > events.size() - 1)
+        start = events.size() - 1;
+    else if (start < 0)
+        start = 0;
 
-    $s = 1;
-    if ($direction == 1)
-        $eval = "return (\$s <= \$times && \$j <= \$end);";
+    s = 1;
+    int which;
+    if (direction == 1)
+        which = 1;
     else
-        $eval = "return (\$s <= \$times && \$j >= \$end);";
+        which = 2;
 
-    if ($start == $step || $direction == 1 && $start > $end || $direction == -1 && $start < $end) {
-        $q[$set] = false;
-        continue;
+    if (start == step || direction == 1 && start > end || direction == -1 && start < end) {
+        q[name] = false;
+        return false;
     }
-    $around_alternator = 1;
-    for ($j = $start; eval($eval); $j += $direction) {
-        if($selector == 'around') {
-            $i = (($j-$start) * $around_alternator)+$start;
-            if($around_alternator == 1){
-                $j--; // skip a beat
+    int around_alternator = 1;
+    for (j = start; looper(which, s, times, j, end); j += direction) {
+        if(selector == "around") {
+            int i = ((j-start) * around_alternator)+start;
+            if(around_alternator == 1){
+                j--; // skip a beat
             }
-            $around_alternator = -$around_alternator;
-            if($i < 0 || $i > $end)
+            around_alternator = -around_alternator;
+            if(i < 0 || i > end)
                 continue;
         }else
-            $i = $j;
-        $q_temp = [];
-        $rules_x = [];
+            i = j;
+        Php::Value q_temp;
+        Php::Value rules_x;
 
-        if($events[$i]->typeId == 43){
-            $end += $direction;
-            if ($end > count($events) - 1)
-                $end = count($events) - 1;
-            elseif ($end < 0)
-                $end = 0;
+        if(events[i]["typeId"] == 43){
+            end += direction;
+            if (end > events.size() - 1)
+                end = events.size() - 1;
+            else if (end < 0)
+                end = 0;
             continue;
         }
 
         // check if skip event
-        bool do = false;
-        if(isset($skips)){
-            foreach($skips as $skip){
-                $skipset = $instruction->skips->{$skip};
-                if(!isset($skipset))
-                    return ['error_interpreter' => 'skipset '.$skip.' is undefined.'];
-                foreach(['stop', 'skip', 'count'] as $skipstop){
-                    foreach(['team', 'teamvs'] as $team){
-                        $context['team'] = isset($skipset->{$skipstop}->{$team}) ? $team : null;
-                        $context['is'] = isset($skipset->{$skipstop}->{$context['team']}->is) ? 'is' : (isset($skipset->{$skipstop}->{$context['team']}->is_not) ? 'is_not' : null);
-                        if(isset($context['team']) && ($context['team'] == 'team' && $q[$primary]->contestantId == $events[$i]->contestantId || $context['team'] == 'teamvs' && $q[$primary]->contestantId != $events[$i]->contestantId)) {
-                            if($context['is'] == 'is')
-                                $do = false;
+        bool xdo = false;
+        if(skips != NULL){
+            for (auto&& [n, skip_t] : skips){
+                string skip = skip_t;
+                Php::Value skipset = skipsets[skip];
+                for (string skipstop_t : {"stop", "skip", "count"}){
+                    skipstop = skipstop_t;
+                    for (string team : {"team", "teamvs"}){
+                        loop_rst:;
+                        Php::Value context;
+                        context["team"] = skipset[skipstop][team] != NULL ? team : NULL;
+                        string context_team = context["team"];
+                        context["is"] = skipset[skipstop][context_team]["is"] != NULL ? "is" : (skipset[skipstop][context_team]["is_not"] != NULL ? "is_not" : NULL);
+                        string context_is = context["is"];
+                        if(!context_team.empty() && (context_team == "team" && q[primary]["contestantId"] == events[i]["contestantId"] || context_team == "teamvs" && q[primary]["contestantId"] != events[i]["contestantId"])) {
+                            bool xdo;
+                            if(context_is == "is")
+                                xdo = false;
                             else
-                                $do = true;
-                            foreach($skipset->{$skipstop}->{$context['team']}->{$context['is']} as $x => $ruleset){
-                                foreach($ruleset as $var => $items){
-                                    if(!is_array($items))
-                                        $items = [$items];
-                                    foreach($items as $value){
-                                        if($var == 'tid')
-                                            $var = 'typeId';
-                                        if(!in_array($var, ['qid', 'qualifierId'])){
-                                            if($events[$i]->{$var} == $value){
-                                                continue 2;
+                                xdo = true;
+                            Php::Value skipset_st = skipset[skipstop][context_team][context_is];
+                            for (auto&& [x, ruleset] : skipset_st){
+                                loop_rs:;
+                                for (auto&& [var_t, items] : ruleset){
+                                    loop_r:;
+                                    string var = var_t;
+                                    if(!items.isArray()){
+                                        Php::Value temp_items;
+                                        temp_items[0] = items;
+                                        Php::Value items = temp_items;
+                                    }
+                                    for (auto&& [xx, value_t] : items){
+                                        string value = value_t;
+                                        if(var == "tid")
+                                            var = "typeId";
+                                        if(!in_array(var, {"qid", "qualifierId"})){
+                                            string evar_t = events[i][var];
+                                            if(evar_t == value){
+                                                goto loop_r;
                                             }
                                         }else{
-                                            foreach($events[$i]->qualifier as $qualifier){
-                                                if($qualifier->qualifierId == $value){
-                                                    continue 3;
+                                            Php::Value eq_t = events[i]["qualifier"];
+                                            for (auto&& [xx, qualifier] : eq_t){
+                                                string qualid_t = qualifier["qualifierId"];
+                                                if(qualid_t == value){
+                                                    goto loop_rs;
                                                 }
                                             }
                                         }
                                     }
                                     // no match
-                                    if($x == count($skipset->{$skipstop}->{$context['team']}->{$context['is']})-1)
-                                        break 5;
+                                    Php::Value skipset_t = skipset[skipstop][context_team][context_is];
+                                    if(x == skipset_t.size()-1){
+                                        goto finish;
+                                    }
                                     else
-                                        continue 2;
+                                        goto loop_rs;
                                 }
-                                if($context['is'] == 'is'){
+                                if(context_is == "is"){
                                     // found match -> skip
-                                    $do = true;
-                                    break 4;
+                                    xdo = true;
+                                    goto finish;
                                 }else{
                                     // found match -> skip
-                                    $do = false;
-                                    continue 2;
+                                    xdo = false;
+                                    goto loop_rst;
                                 }
                             }
                         }
                     }
                 }
             }
-            if($do){
-                if($skipstop == 'stop'){
-                    $q[$set] = false;
-                    break;
-                }elseif($skipstop == 'skip') {
-                    $end += $direction;
-                    if ($end > count($events) - 1)
-                        $end = count($events) - 1;
-                    elseif ($end < 0)
-                        $end = 0;
+            finish:;
+            if(xdo){
+                if(skipstop == "stop"){
+                    q[name] = false;
+                    return false;
+                }else if(skipstop == "skip") {
+                    end += direction;
+                    if (end > events.size() - 1)
+                        end = events.size() - 1;
+                    else if (end < 0)
+                        end = 0;
                     continue;
-                }elseif($skipstop == 'count'){
-                    $s++;
+                }else if(skipstop == "count"){
+                    s++;
                     continue;
                 }
             }
         }
-        // END CURRENT WORK
-        // ADD THE REST OF CHECKS HERE
-    }*/
 
+        testConditions(name, conditions, skipsets, i, primary_index, events, q, primary, all_i, it);
+        if (s >= times && q[name] != false) {
+            return true;
+        }
+        s++;
+    }
     if(q[name] == false){
         return false;
     }
@@ -497,6 +525,20 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
     string left, right, op, q_op;
     Php::Value args, q_args, sides, q_sides, cond, q_cond, qual, q_qual;
 
+    /*Php::Value lol;
+    lol[0] = name;
+    lol[1] = conditions;
+    lol[3] = skips;
+    lol[4] = index;
+    lol[5] = primary_index;
+    lol[6] = q;
+    lol[7] = primary;
+    lol[8] = all_i;
+    lol[9] = it;
+    lol[10] = events;
+    q = lol;
+    return false;*/
+
     vector<string> $primary_event_selectors = {"before", "after", "around", "skip"};
 
     cond = trim_explode(",", conditions[name]);
@@ -531,6 +573,8 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
             }
         }else{
             // abstract
+            string left;
+            string right;
             if(!is_numeric(side_s) && side_s.find_first_of('.') != std::string::npos){
                 string left = getAbstractValue(side_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
                 if(left == "Q NOT SET / VALUE NOT FOUND"){
@@ -539,26 +583,30 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
                 }
                 string right_s = sides[1];
                 if(!is_numeric(right_s) && right_s.find_first_of('.') != std::string::npos){
-                    string right = getAbstractValue(right_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
+                    string right_st = getAbstractValue(right_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
+                    right = right_st;
                     if(right == "Q NOT SET / VALUE NOT FOUND"){
                        q[name] = false;
                         return false;
                     }
                 }else{
-                    string right = right_s;
+                    right = right_s;
                 }
             }else{
-                string left = q[name][side_s];
+                side_s.replace(side_s.find("tid"), 3, "typeId");
+                string left_t = q[name][side_s];
+                left = left_t;
                 // check if right side another abstract value
                 string right_s = sides[1];
                 if(!is_numeric(right_s) && right_s.find_first_of('.') != std::string::npos){
-                    string right = getAbstractValue(right_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
+                    string right_st = getAbstractValue(right_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
+                    right = right_st;
                     if(right == "Q NOT SET / VALUE NOT FOUND"){
                        q[name] = false;
                         return false;
                     }
                 }else{
-                    string right = right_s;
+                    right = right_s;
                 }
             }
             if(!eval_with_op(left, right, op)){
@@ -576,24 +624,29 @@ Php::Value interpreter(Php::Parameters &params)
     auto $events = params[0];
     auto $code = params[1];
 
-    Php::Value $collection, $q, $empty, $temp, $args, $sides;
+    Php::Value $collection, $temp, $args, $sides;
 
     vector<string> $all_i, $it;
 
     for (auto&& [$step, $event] : $events) {
         for (auto&& [$i_event_name, $code_blocks] : $code){
-            $q = $empty;
+            Php::Value $q;
             for (auto&& [$block, $instruction] : $code_blocks){
                 $all_i = {};
                 string $primary;
-                for (auto&& [k, v] : $instruction["conditions"]){
+                Php::Value xd = $instruction["conditions"];
+                for (auto&& [k, v] : xd){
                     $all_i.push_back(k);
                 }
-                if ($instruction["primary"] != NULL)
-                    string $primary = $instruction["primary"];
+                string t_p = $instruction["primary"];
+                if (!t_p.empty())
+                    $primary = t_p;
                 else
-                    string $primary = $all_i[0];
-                $q[$primary] = $event;
+                    $primary = $all_i[0];
+                vector<string> it;
+                Php::Value cond_t = $instruction["conditions"];
+                Php::Value skips_t = $instruction["skips"];
+                testConditions($primary, cond_t, skips_t, $step, $step, $events, $q, $primary, $all_i, it);
                 return $q;
             }
         }
