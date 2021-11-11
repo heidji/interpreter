@@ -11,7 +11,7 @@
 
 using namespace std;
 using namespace std::chrono;
-
+Php::Value test;
 bool is_numeric(string s){
     return !s.empty() && s.find_first_not_of("-.0123456789") == std::string::npos;
 }
@@ -37,6 +37,7 @@ int strtotime(string date)
     int sec;
     secValue >> sec;
 
+    // approximation for comparison purposes only
     return ((((year*12+month)*30+day)*24+hour)*60+min)*60+sec;
 }
 
@@ -162,6 +163,11 @@ string operands(string str){
 };
 
 bool eval_with_op(string left, string right, string op){
+    // check null string
+    string temp = right;
+    clean(temp);
+    if(temp == "null")
+        right = ""; // no null in c++ :(
     if(op == "=")
         return left == right;
     else if(op == "!=")
@@ -181,7 +187,9 @@ bool in_array(string needle, vector<string> haystack){
     return count(haystack.begin(), haystack.end(), needle);
 }
 
-bool isEventCondition(string &name, Php::Value &conditions){
+bool isEventCondition(string &name, Php::Value &conditions, string primary){
+    if(name == primary)
+        return true;
     vector<string> $primary_event_selectors = {"before", "after", "around", "skip"};
     string temp = conditions[name];
 
@@ -202,8 +210,7 @@ bool looper(int which, int s, int times, int j, int end){
         return (s <= times && j >= end);
 }
 
-bool findEvent(string &name, Php::Value &skipsets, Php::Value &conditions, int primary_index, int index, Php::Value &events, Php::Value &q, string &primary, vector<string> &all_i, vector<string> &it){
-
+bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int primary_index, int index, Php::Value &events, Php::Value &q, string &primary, vector<string> &all_i, vector<string> &it){
     if(in_array(name, it))
         throw std::invalid_argument("circular reference");
     it.push_back(name);
@@ -240,9 +247,10 @@ bool findEvent(string &name, Php::Value &skipsets, Php::Value &conditions, int p
                 direction = 1;
             Php::Value temp = trim_explode("=", rule);
             // TODO: throw error if not present
-            if(selector != "around")
-                int times = temp[1];
-            else {
+            if(selector != "around"){
+                int times_t = temp[1];
+                times = times_t;
+            }else {
                 times = 1; // in around there's no xth match, always first
                 if (rule.find("sec") != std::string::npos) {
                     within_type = "time";
@@ -253,12 +261,11 @@ bool findEvent(string &name, Php::Value &skipsets, Php::Value &conditions, int p
                 }
                 Php::Value args = trim_explode("=", rule);
                 int within = args[1];
-                if(within == 0)
-                    within = NULL;
             }
             rules[pos] = NULL;
             continue;
         }
+
         if (rule.find("within") != std::string::npos) {
             if(selector != "around"){
                 if (rule.find("sec") != std::string::npos) {
@@ -282,7 +289,7 @@ bool findEvent(string &name, Php::Value &skipsets, Php::Value &conditions, int p
 
     start = step + direction;
 
-    if (within != NULL) {
+    if (within != 0) {
         if (within_type == "steps") {
             end = step + (within * direction);
         } else {
@@ -348,8 +355,8 @@ bool findEvent(string &name, Php::Value &skipsets, Php::Value &conditions, int p
         }
 
         // check if skip event
-        bool xdo = false;
         if(skips != NULL){
+            bool xdo = false;
             for (auto&& [n, skip_t] : skips){
                 string skip = skip_t;
                 Php::Value skipset = skipsets[skip];
@@ -363,7 +370,6 @@ bool findEvent(string &name, Php::Value &skipsets, Php::Value &conditions, int p
                         context["is"] = skipset[skipstop][context_team]["is"] != NULL ? "is" : (skipset[skipstop][context_team]["is_not"] != NULL ? "is_not" : NULL);
                         string context_is = context["is"];
                         if(!context_team.empty() && (context_team == "team" && q[primary]["contestantId"] == events[i]["contestantId"] || context_team == "teamvs" && q[primary]["contestantId"] != events[i]["contestantId"])) {
-                            bool xdo;
                             if(context_is == "is")
                                 xdo = false;
                             else
@@ -438,13 +444,13 @@ bool findEvent(string &name, Php::Value &skipsets, Php::Value &conditions, int p
                 }
             }
         }
-
         testConditions(name, conditions, skipsets, i, primary_index, events, q, primary, all_i, it);
         if (s >= times && q[name] != false) {
             return true;
         }
         s++;
     }
+
     if(q[name] == false){
         return false;
     }
@@ -478,16 +484,20 @@ bool testEventQualifierConditions(string &name, string &qname, Php::Value &condi
     return false;
 }
 
-string getAbstractValue(string query, Php::Value &conditions, Php::Value &skips, int index, int primary_index, Php::Value &events, Php::Value &q, string &primary, vector<string> &all_i, vector<string> &it){
+string getAbstractValue(string name, string query, Php::Value &conditions, Php::Value &skips, int index, int primary_index, Php::Value &events, Php::Value &q, string &primary, vector<string> &all_i, vector<string> &it){
     Php::Value sides = trim_explode(".", query);
-    string name = sides[0];
+
     string fquery;
-    string var;
+    string qname, var;
 
     if(sides.size() == 3){
-        string qname = sides[1];
-        string var = sides[2];
-        string fquery = name+"."+qname;
+        string name_t = sides[0];
+        name = name_t;
+        string qname_t = sides[1];
+        qname = qname_t;
+        string var_t = sides[2];
+        var = var_t;
+        fquery = name+"."+qname;
         if(q[name+"."+qname] == NULL){
             if(q[name] == NULL){
                 findEvent(name, conditions, skips, index, primary_index, events, q, primary, all_i, it);
@@ -499,6 +509,13 @@ string getAbstractValue(string query, Php::Value &conditions, Php::Value &skips,
                     if(!testEventQualifierConditions(name, qname, conditions, q)){
                         return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
                     }
+                    // additional setter for future evals
+                    // additional setter for future evals
+                    if(name == primary){
+                        Php::Value xd;
+                        xd = q[name+"."+qname];
+                        q[qname] = xd;
+                    }
                 }else if(q[name+"."+qname] == false){
                     return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
                 }
@@ -507,15 +524,51 @@ string getAbstractValue(string query, Php::Value &conditions, Php::Value &skips,
             return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
         }
     }else{
-        string var = sides[1];
-        string fquery = name;
-        if(q[name] == NULL){
-            findEvent(name, conditions, skips, index, primary_index, events, q, primary, all_i, it);
-        }
-        if(q[name] == false){
-            return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
+        string qname_t = sides[0];
+        qname = qname_t;
+        string var_t = sides[1];
+        var = var_t;
+
+        if(isEventCondition(qname, conditions, primary)){
+            name = qname;
+            fquery = name;
+
+            if(q[name] == NULL){
+                findEvent(name, conditions, skips, index, primary_index, events, q, primary, all_i, it);
+            }
+            if(q[name] == false){
+                return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
+            }
+        }else{
+            // is qualifier
+            fquery = name+"."+qname;
+
+            if(q[name] == NULL){
+                findEvent(name, conditions, skips, index, primary_index, events, q, primary, all_i, it);
+            }
+            if(q[name] == false){
+                return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
+            }else{
+                if(q[name+"."+qname] == NULL){
+                    if(!testEventQualifierConditions(name, qname, conditions, q)){
+                        return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
+                    }
+                    // additional setter for future evals
+                    if(name == primary){
+                        Php::Value xd;
+                        xd = q[name+"."+qname];
+                        q[qname] = xd;
+                    }
+                }else if(q[name+"."+qname] == false){
+                    return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
+                }
+            }
         }
     }
+    if(var.find("tid") != std::string::npos)
+        var.replace(var.find("tid"), 3, "typeId");
+    if(var.find("qid") != std::string::npos)
+        var.replace(var.find("qid"), 3, "qualifierId");
     string r = q[fquery][var];
     return r;
 }
@@ -545,11 +598,11 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
 
     // put the event in q so we can use it onwards
     q[name] = events[index];
-    for (auto&& [i, condition] : cond){
+    for (auto&& [i, t_condition] : cond){
         // check if its not a predefined variable
-        string t_condition = condition;
+        string condition = t_condition;
         for (string selector : $primary_event_selectors){
-            if(t_condition.find(selector) != std::string::npos)
+            if(condition.find(selector) != std::string::npos)
                 continue;
         }
         op = operands(condition);
@@ -576,14 +629,15 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
             string left;
             string right;
             if(!is_numeric(side_s) && side_s.find_first_of('.') != std::string::npos){
-                string left = getAbstractValue(side_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
-                if(left == "Q NOT SET / VALUE NOT FOUND"){
+                string left_t = getAbstractValue(name, side_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
+                left = left_t;
+                if(left_t == "Q NOT SET / VALUE NOT FOUND"){
                     q[name] = false;
                     return false;
                 }
                 string right_s = sides[1];
                 if(!is_numeric(right_s) && right_s.find_first_of('.') != std::string::npos){
-                    string right_st = getAbstractValue(right_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
+                    string right_st = getAbstractValue(name, right_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
                     right = right_st;
                     if(right == "Q NOT SET / VALUE NOT FOUND"){
                        q[name] = false;
@@ -593,22 +647,24 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
                     right = right_s;
                 }
             }else{
-                side_s.replace(side_s.find("tid"), 3, "typeId");
+                if(side_s.find("tid") != std::string::npos)
+                    side_s.replace(side_s.find("tid"), 3, "typeId");
                 string left_t = q[name][side_s];
                 left = left_t;
                 // check if right side another abstract value
                 string right_s = sides[1];
                 if(!is_numeric(right_s) && right_s.find_first_of('.') != std::string::npos){
-                    string right_st = getAbstractValue(right_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
+                    string right_st = getAbstractValue(name, right_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
                     right = right_st;
                     if(right == "Q NOT SET / VALUE NOT FOUND"){
                        q[name] = false;
-                        return false;
+                       return false;
                     }
                 }else{
                     right = right_s;
                 }
             }
+
             if(!eval_with_op(left, right, op)){
                 q[name] = false;
                 return false;
@@ -630,8 +686,8 @@ Php::Value interpreter(Php::Parameters &params)
 
     for (auto&& [$step, $event] : $events) {
         for (auto&& [$i_event_name, $code_blocks] : $code){
-            Php::Value $q;
             for (auto&& [$block, $instruction] : $code_blocks){
+                Php::Value $q;
                 $all_i = {};
                 string $primary;
                 Php::Value xd = $instruction["conditions"];
@@ -645,13 +701,14 @@ Php::Value interpreter(Php::Parameters &params)
                     $primary = $all_i[0];
                 vector<string> it;
                 Php::Value cond_t = $instruction["conditions"];
-                Php::Value skips_t = $instruction["skips"];
+                Php::Value skips_t;
+                if($instruction["skips"] != NULL)
+                    skips_t = $instruction["skips"];
                 testConditions($primary, cond_t, skips_t, $step, $step, $events, $q, $primary, $all_i, it);
-                return $q;
             }
         }
     }
-
+return test;
     return $collection;
 }
 
