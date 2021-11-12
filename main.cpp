@@ -86,9 +86,9 @@ Php::Value trim_explode(string delim, string s)
 
 string eval_exp(string str){
     bool res;
-    auto or_exp = explode(str, "or");
+    auto or_exp = explode("or", str);
     for(string s_or : or_exp){
-        auto and_exp = explode(s_or, "and");
+        auto and_exp = explode("and", s_or);
         res = true;
         for(string s_and : and_exp){
             if(s_and.find("false") != string::npos){
@@ -867,7 +867,7 @@ Php::Value interpreter(Php::Parameters &params)
 
                 for (auto&& [x, arg_t] : sorted_args){
                     string arg = arg_t;
-                    if(q[arg] == false){
+                    if(q[arg] == false || q[arg] == NULL){
                         while(formula.find(arg) != std::string::npos){
                             formula.replace(formula.find(arg), arg.length(), "false");
                         }
