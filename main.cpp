@@ -54,6 +54,9 @@ vector<string> explode(string delim, string s)
 {
     vector<string> result;
 
+    if(s.empty())
+        return result;
+
     int temp;
     while (s.find(delim) != string::npos && !delim.empty())
     {
@@ -70,6 +73,9 @@ Php::Value trim_explode(string delim, string s)
 {
     Php::Value res;
     vector<string> result;
+
+    if(s.empty())
+        return res;
 
     int temp;
     while (s.find(delim) != string::npos && !delim.empty())
@@ -129,6 +135,10 @@ void clean(string &str){
 }
 
 bool eval(string str){
+
+    if(str == "")
+        return true;
+
     clean(str);
 
     while(str.find("(") != string::npos){
@@ -746,14 +756,15 @@ Php::Value interpreter(Php::Parameters &params)
                     formula_t.replace(formula_t.find(" and "), 5, " ");
                 }
                 while(formula_t.find(" or ") != std::string::npos){
-                    formula_t.replace(formula_t.find(" or "), 4, "");
+                    formula_t.replace(formula_t.find(" or "), 4, " ");
                 }
                 while(formula_t.find(" not ") != std::string::npos){
-                    formula_t.replace(formula_t.find(" not "), 5, "");
+                    formula_t.replace(formula_t.find(" not "), 5, " ");
                 }
                 clean(formula_t);
 
                 Php::Value formula_args = trim_explode(" ", formula_t);
+
                 for (auto&& [i, arg_t] : formula_args){
                     string arg = arg_t;
                     string op = operands(arg);
