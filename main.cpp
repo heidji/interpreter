@@ -11,7 +11,7 @@
 
 using namespace std;
 using namespace std::chrono;
-Php::Value test;
+
 bool is_numeric(string s){
     return !s.empty() && s.find_first_not_of("-.0123456789") == std::string::npos;
 }
@@ -159,27 +159,45 @@ string operands(string str){
     }else if(str.find("<") != string::npos){
         return "<";
     }
-    return NULL;
+    return "";
 };
 
 bool eval_with_op(string left, string right, string op){
     // check null string
+    double l, r;
     string temp = right;
     clean(temp);
     if(temp == "null")
         right = ""; // no null in c++ :(
-    if(op == "=")
-        return left == right;
-    else if(op == "!=")
-        return left != right;
-    else if(op == ">")
-        return left > right;
-    else if(op == "<")
-        return left < right;
-    else if(op == ">=")
-        return left >= right;
-    else if(op == "<=")
-        return left <= right;
+    if(is_numeric(left) && is_numeric(right)){
+        l = ::atof(left.c_str());
+        r = ::atof(right.c_str());
+        if(op == "=")
+            return l == r;
+        else if(op == "!=")
+            return l != r;
+        else if(op == ">")
+            return l > r;
+        else if(op == "<")
+            return l < r;
+        else if(op == ">=")
+            return l >= r;
+        else if(op == "<=")
+            return l <= r;
+    }else{
+        if(op == "=")
+            return left == right;
+        else if(op == "!=")
+            return left != right;
+        else if(op == ">")
+            return left > right;
+        else if(op == "<")
+            return left < right;
+        else if(op == ">=")
+            return left >= right;
+        else if(op == "<=")
+            return left <= right;
+    }
     return false;
 }
 
@@ -190,10 +208,10 @@ bool in_array(string needle, vector<string> haystack){
 bool isEventCondition(string &name, Php::Value &conditions, string primary){
     if(name == primary)
         return true;
-    vector<string> $primary_event_selectors = {"before", "after", "around", "skip"};
+    vector<string> primary_event_selectors = {"before", "after", "around", "skip"};
     string temp = conditions[name];
 
-    for (string selector : $primary_event_selectors){
+    for (string selector : primary_event_selectors){
         if(temp.find(selector) != std::string::npos)
             return true;
     }
@@ -211,6 +229,7 @@ bool looper(int which, int s, int times, int j, int end){
 }
 
 bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int primary_index, int index, Php::Value &events, Php::Value &q, string &primary, vector<string> &all_i, vector<string> &it){
+
     if(in_array(name, it))
         throw std::invalid_argument("circular reference");
     it.push_back(name);
@@ -228,8 +247,8 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
 
     string condition = conditions[name];
 
-    vector<string> $primary_event_selectors = {"before", "after", "around"};
-    for (string s : $primary_event_selectors){
+    vector<string> primary_event_selectors = {"before", "after", "around"};
+    for (string s : primary_event_selectors){
         if(condition.find(s) != std::string::npos){
             selector = s;
             break;
@@ -273,10 +292,11 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                     rule.replace(rule.find("sec"), 3, "");
                 } else {
                     within_type = "steps";
-                    rule.replace(rule.find("steps"), 5, "");
+                    if (rule.find("steps") != std::string::npos)
+                        rule.replace(rule.find("steps"), 5, "");
                 }
                 Php::Value args = trim_explode("=", rule);
-                int within = args[1];
+                within = args[1];
             }
             rules[pos] = NULL;
             continue;
@@ -444,11 +464,11 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                 }
             }
         }
-        testConditions(name, conditions, skipsets, i, primary_index, events, q, primary, all_i, it);
+        if(testConditions(name, conditions, skipsets, i, primary_index, events, q, primary, all_i, it))
+            s++;
         if (s >= times && q[name] != false) {
             return true;
         }
-        s++;
     }
 
     if(q[name] == false){
@@ -592,19 +612,25 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
     q = lol;
     return false;*/
 
-    vector<string> $primary_event_selectors = {"before", "after", "around", "skip"};
+    vector<string> primary_event_selectors = {"before", "after", "around", "skip", "within"};
 
     cond = trim_explode(",", conditions[name]);
 
     // put the event in q so we can use it onwards
     q[name] = events[index];
+
     for (auto&& [i, t_condition] : cond){
         // check if its not a predefined variable
         string condition = t_condition;
-        for (string selector : $primary_event_selectors){
-            if(condition.find(selector) != std::string::npos)
-                continue;
+        bool found = false;
+        for (string selector : primary_event_selectors){
+            if(condition.find(selector) != std::string::npos){
+                found = true;
+                break;
+            }
         }
+        if(found)
+            continue;
         op = operands(condition);
         sides = trim_explode(op, condition);
         // NOT condition
@@ -677,39 +703,157 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
 
 Php::Value interpreter(Php::Parameters &params)
 {
-    auto $events = params[0];
-    auto $code = params[1];
+    auto events = params[0];
+    auto code = params[1];
 
-    Php::Value $collection, $temp, $args, $sides;
+    Php::Value collection, temp, args, sides;
 
-    vector<string> $all_i, $it;
+    vector<string> all_i, it;
 
-    for (auto&& [$step, $event] : $events) {
-        for (auto&& [$i_event_name, $code_blocks] : $code){
-            for (auto&& [$block, $instruction] : $code_blocks){
-                Php::Value $q;
-                $all_i = {};
-                string $primary;
-                Php::Value xd = $instruction["conditions"];
+    for (auto&& [step, event] : events) {
+        for (auto&& [i_event_name, code_blocks] : code){
+            for (auto&& [block, instruction] : code_blocks){
+                Php::Value q;
+                all_i = {};
+                string primary;
+                Php::Value xd = instruction["conditions"];
                 for (auto&& [k, v] : xd){
-                    $all_i.push_back(k);
+                    all_i.push_back(k);
                 }
-                string t_p = $instruction["primary"];
+                string t_p = instruction["primary"];
                 if (!t_p.empty())
-                    $primary = t_p;
+                    primary = t_p;
                 else
-                    $primary = $all_i[0];
+                    primary = all_i[0];
                 vector<string> it;
-                Php::Value cond_t = $instruction["conditions"];
-                Php::Value skips_t;
-                if($instruction["skips"] != NULL)
-                    skips_t = $instruction["skips"];
-                testConditions($primary, cond_t, skips_t, $step, $step, $events, $q, $primary, $all_i, it);
+                Php::Value conditions = instruction["conditions"];
+                Php::Value skips;
+                if(instruction["skips"] != NULL)
+                    skips = instruction["skips"];
+                if(!testConditions(primary, conditions, skips, step, step, events, q, primary, all_i, it))
+                    continue;
+                // eval formula
+                string formula = instruction["formula"];
+                // extract all elements
+                string formula_t = " "+formula+" ";
+                while(formula_t.find("(") != std::string::npos){
+                    formula_t.replace(formula_t.find("("), 1, " ");
+                }
+                while(formula_t.find(")") != std::string::npos){
+                    formula_t.replace(formula_t.find(")"), 1, " ");
+                }
+                while(formula_t.find(" and ") != std::string::npos){
+                    formula_t.replace(formula_t.find(" and "), 5, " ");
+                }
+                while(formula_t.find(" or ") != std::string::npos){
+                    formula_t.replace(formula_t.find(" or "), 4, "");
+                }
+                while(formula_t.find(" not ") != std::string::npos){
+                    formula_t.replace(formula_t.find(" not "), 5, "");
+                }
+                clean(formula_t);
+
+                Php::Value formula_args = trim_explode(" ", formula_t);
+                for (auto&& [i, arg_t] : formula_args){
+                    string arg = arg_t;
+                    string op = operands(arg);
+                    if(op.empty()){
+                        // normal argument
+                        if(q[arg] == NULL){
+                            if(arg.find(".") != std::string::npos){
+                                Php::Value parts = trim_explode(".", arg);
+                                string part_1 = parts[0];
+                                string part_2 = parts[1];
+                                if(q[part_1] == NULL){
+                                    findEvent(part_1, conditions, skips, step, step, events, q, primary, all_i, it);
+                                }
+                                if(q[part_1] == false){
+                                    q[arg] = false;
+                                }else{
+                                    testEventQualifierConditions(part_1, part_2, conditions, q);
+                                }
+                            }else{
+                                if(isEventCondition(arg, conditions, primary)){
+                                    findEvent(arg, conditions, skips, step, step, events, q, primary, all_i, it);
+                                    return q;
+                                }else{
+                                    // only a qualifier
+                                    testEventQualifierConditions(primary, arg, conditions, q);
+                                }
+                            }
+                        }
+                    }else{
+                        // complex argument with operand
+                        string ev1, var1, ev2, var2;
+                        Php::Value sides = trim_explode(op, arg);
+                        string left = sides[0];
+                        string right = sides[1];
+                        // left has to be conjugated, right doesn't
+
+                        Php::Value parts = trim_explode(".", left);
+                        if(parts.size() == 2){
+                            string left_t = parts[0];
+                            string t1 = parts[1];
+                            ev1 = left_t;
+                            var1 = t1;
+                            if(q[left_t] == NULL){
+                                // only a qualifier
+                                testEventQualifierConditions(primary, left_t, conditions, q);
+                            }
+                        }else{ // 3
+                            string left_t = parts[0];
+                            string left_tt = parts[1];
+                            string t1 = parts[2];
+                            ev1 = left_t+"."+left_tt;
+                            var1 = t1;
+                            if(q[left_t] == NULL){
+                                // only a qualifier
+                                testEventQualifierConditions(left_t, left_tt, conditions, q);
+                            }
+                        }
+
+                        if(!is_numeric(right) && right.find(".") != std::string::npos){
+                            Php::Value parts = trim_explode(".", right);
+                            if(parts.size() == 2){
+                                string right_t = parts[0];
+                                string t2 = parts[1];
+                                ev2 = right_t;
+                                var2 = t2;
+                                if(q[right_t] == NULL){
+                                    // only a qualifier
+                                    testEventQualifierConditions(primary, right_t, conditions, q);
+                                }
+                            }else{ // 3
+                                string right_t = parts[0];
+                                string right_tt = parts[1];
+                                string t2 = parts[2];
+                                ev2 = right_t+"."+right_tt;
+                                var2 = t2;
+                                if(q[right_t] == NULL){
+                                    // only a qualifier
+                                    testEventQualifierConditions(right_t, right_tt, conditions, q);
+                                }
+                            }
+                        }else{
+                            var2 = right;
+                        }
+                        string l = q[ev1][var1];
+                        string r;
+                        if(ev2.empty()){
+                            string t = q[ev2][var2];
+                            r = t;
+                        }else{
+                            r = var2;
+                        }
+                        q[arg] = eval_with_op(op, l, r);
+                    }
+                }
+                return q;
             }
         }
     }
-return test;
-    return $collection;
+
+    return collection;
 }
 
 // Symbols are exported according to the "C" language
