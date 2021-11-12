@@ -128,7 +128,7 @@ void clean(string &str){
     }
 }
 
-string eval(string str){
+bool eval(string str){
     clean(str);
 
     while(str.find("(") != string::npos){
@@ -142,7 +142,7 @@ string eval(string str){
         clean(str);
     }
 
-    return eval_exp(str);
+    return eval_exp(str) == "true";
 }
 
 string operands(string str){
@@ -775,7 +775,6 @@ Php::Value interpreter(Php::Parameters &params)
                             }else{
                                 if(isEventCondition(arg, conditions, primary)){
                                     findEvent(arg, conditions, skips, step, step, events, q, primary, all_i, it);
-                                    return q;
                                 }else{
                                     // only a qualifier
                                     testEventQualifierConditions(primary, arg, conditions, q);
@@ -848,7 +847,90 @@ Php::Value interpreter(Php::Parameters &params)
                         q[arg] = eval_with_op(op, l, r);
                     }
                 }
-                return q;
+
+                // sort by length so we dont accidentally replace wrong values
+                Php::Value sorted_args;
+                int i = 0;
+                while (sorted_args.size() < formula_args.size()){
+                    int s = 0;
+                    string max;
+                    for (auto&& [x, arg_t] : formula_args){
+                        string arg = arg_t;
+                        if(arg.length() > s){
+                            max = arg;
+                            s = arg.length();
+                        }
+                    }
+                    sorted_args[i] = max;
+                    i++;
+                }
+
+                for (auto&& [x, arg_t] : sorted_args){
+                    string arg = arg_t;
+                    if(q[arg] == false){
+                        while(formula.find(arg) != std::string::npos){
+                            formula.replace(formula.find(arg), arg.length(), "false");
+                        }
+                    }else{
+                        while(formula.find(arg) != std::string::npos){
+                            formula.replace(formula.find(arg), arg.length(), "true");
+                        }
+                    }
+                }
+
+                // moment of truth
+                if(eval(formula)){
+                    Php::Value temp;
+                    temp["event_type"] = i_event_name;
+                    string t1 = q[primary]["eventId"];
+                    temp["event_id"] = t1;
+                    string t2 = q[primary]["id"];
+                    temp["id"] = t2;
+                    string t3 = q[primary]["timeStamp"];
+                    temp["time"] = t3;
+                    if(instruction["noten_context"] == NULL){
+                        temp["noten_context"] = "";
+                    }else{
+                        temp["noten_context"] = instruction["noten_context"];
+                    }
+                    for (auto&& [key_t, items] : instruction["values"]){
+                        string key = key_t;
+                        Php::Value splits = trim_explode("|", items);
+                        for (auto&& [x, value_t] : splits){
+                            string value = value_t;
+                            if (!is_numeric(value) && value.find(".") != std::string::npos) {
+                                int find = value.find_last_of('.');
+                                string value_part = value.substr(find+1, value.length()-find);
+                                if (value_part == "tid") {
+                                    value_part = "typeId";
+                                }else if (value_part == "qid") {
+                                    value_part = "qualifierId";
+                                }
+                                value = value.substr(0, find);
+                                if (q[value] != NULL) {
+                                    string t = q[value][value_part];
+                                    temp["values"][key] = t;
+                                    // convert timeStamp to PHP readable
+                                    if (value_part == "timeStamp" && t != ""){
+                                        temp["values"][key] = t.substr(0, 10)+" "+t.substr(11, 8);
+                                    }
+                                    // break when 1st value is found
+                                    if(t != "")
+                                        break;
+                                }
+                                if(temp["values"][key] == NULL)
+                                    temp["values"][key] = "";
+                            } else {
+                                // assume constant
+                                temp["values"][key] = value;
+                            }
+                        }
+                    }
+                    collection[collection.size()] = temp;
+                    // break the code block iteration
+                    break;
+                }
+                return collection;
             }
         }
     }
