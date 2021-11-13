@@ -245,7 +245,7 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
     it.push_back(name);
 
     int step = primary_index;
-    int within, times;
+    int within = 0, times = 0;
     int start, direction, end;
     int i;
     int j;
@@ -289,7 +289,7 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                     rule.replace(rule.find("steps"), 5, "");
                 }
                 Php::Value args = trim_explode("=", rule);
-                int within = args[1];
+                within = args[1];
             }
             rules[pos] = NULL;
             continue;
@@ -318,6 +318,14 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
     }
 
     start = step + direction;
+
+    /*q["start"] = start;
+    q["end"] = end;
+    q["directon"] = direction;
+    q["times"] = times;
+    //q["which"] = which;
+    q["within"] = within;
+    return false;*/
 
     if (within != 0) {
         if (within_type == "steps") {
@@ -361,6 +369,7 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
         return false;
     }
     int around_alternator = 1;
+
     for (j = start; looper(which, s, times, j, end); j += direction) {
         if(selector == "around") {
             int i = ((j-start) * around_alternator)+start;
@@ -372,8 +381,6 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                 continue;
         }else
             i = j;
-        Php::Value q_temp;
-        Php::Value rules_x;
 
         if(events[i]["typeId"] == 43){
             end += direction;
@@ -474,6 +481,7 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                 }
             }
         }
+
         if(testConditions(name, conditions, skipsets, i, primary_index, events, q, primary, all_i, it))
             s++;
         if (s >= times && q[name] != false) {
@@ -641,6 +649,7 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
         }
         if(found)
             continue;
+
         op = operands(condition);
         sides = trim_explode(op, condition);
         // NOT condition
@@ -713,6 +722,11 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
 
 Php::Value interpreter(Php::Parameters &params)
 {
+    /*std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+    Php::Value lul = xdd;
+    std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
+    return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();*/
+
     auto events = params[0];
     auto code = params[1];
 
@@ -941,11 +955,10 @@ Php::Value interpreter(Php::Parameters &params)
                     // break the code block iteration
                     break;
                 }
-                return collection;
+                //return collection;
             }
         }
     }
-
     return collection;
 }
 
