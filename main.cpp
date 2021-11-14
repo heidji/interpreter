@@ -245,6 +245,16 @@ bool looper(int which, int s, int times, int j, int end){
 
 bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int primary_index, int index, Php::Value &events, Php::Value &q, string &primary, vector<string> &all_i, vector<string> &it){
 
+    /*q["primary_index"] = primary_index;
+    q["start"] = start;
+    q["end"] = end;
+    q["directon"] = direction;
+    q["times"] = times;
+    q["which"] = which;
+    q["s"] = s;
+    q["within"] = within;
+    return false;*/
+
     if(in_array(name, it))
         throw std::invalid_argument("circular reference");
     it.push_back(name);
@@ -324,14 +334,6 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
 
     start = step + direction;
 
-    /*q["start"] = start;
-    q["end"] = end;
-    q["directon"] = direction;
-    q["times"] = times;
-    //q["which"] = which;
-    q["within"] = within;
-    return false;*/
-
     if (within != 0) {
         if (within_type == "steps") {
             end = step + (within * direction);
@@ -362,7 +364,6 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
     else if (start < 0)
         start = 0;
 
-    s = 1;
     int which;
     if (direction == 1)
         which = 1;
@@ -489,15 +490,14 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
 
         if(testConditions(name, conditions, skipsets, i, primary_index, events, q, primary, all_i, it))
             s++;
+
         if (s >= times && q[name] != false) {
             return true;
         }
     }
 
-    if(q[name] == false){
-        return false;
-    }
-    return true;
+    q[name] = false;
+    return false;
 }
 
 bool testEventQualifierConditions(string &name, string &qname, Php::Value &conditions, Php::Value &q){
