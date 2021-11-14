@@ -12,6 +12,11 @@
 using namespace std;
 using namespace std::chrono;
 
+struct event {
+    map<string, string> params;
+    vector<map<string, string>> qualifier;
+};
+
 bool is_numeric(string s){
     return !s.empty() && s.find_first_not_of("-.0123456789") == std::string::npos;
 }
@@ -246,10 +251,10 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
 
     int step = primary_index;
     int within = 0, times = 0;
-    int start, direction, end;
-    int i;
-    int j;
-    int s;
+    int start = 0, direction = 0, end = 0;
+    int i = 0;
+    int j = 0;
+    int s = 0;
     Php::Value skips;
 
     string selector, within_type, skipstop;
@@ -722,6 +727,10 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
 
 Php::Value interpreter(Php::Parameters &params)
 {
+    /*struct event e;
+    e.params = {{"k", "l"}, {"k", "l"}};
+    e.qualifier = {{{"k", "l"}, {"k", "l"}}, {{"k", "l"}, {"k", "l"}}, {{"k", "l"}, {"k", "l"}}};
+    return e.qualifier[2]["k"];*/
     /*std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
     Php::Value lul = xdd;
     std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
@@ -734,7 +743,8 @@ Php::Value interpreter(Php::Parameters &params)
 
     vector<string> all_i, it;
 
-    for (auto&& [step, event] : events) {
+    for (auto&& [step_t, event] : events) {
+        int step = step_t;
         for (auto&& [i_event_name, code_blocks] : code){
             for (auto&& [block, instruction] : code_blocks){
                 Php::Value q;
