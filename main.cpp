@@ -120,13 +120,16 @@ string eval_exp(string str){
     return "false";
 }
 
-void clean(string &str){
+void clean(string &str, bool lower = true){
     // to lower
     locale loc;
-    string temp = "";
-    for(auto elem : str)
-        temp += tolower(elem,loc);
-    str = temp;
+
+    if(lower){
+        string temp = "";
+        for(auto elem : str)
+            temp += tolower(elem,loc);
+        str = temp;
+    }
 
     // trim
     str = trim(str);
@@ -181,7 +184,6 @@ bool eval_with_op(string left, string right, string op){
     // check null string
     double l, r;
     string temp = right;
-    clean(temp);
     if(temp == "null")
         right = ""; // no null in c++ :(
     if(is_numeric(left) && is_numeric(right)){
@@ -412,6 +414,8 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                 for (string skipstop_t : {"stop", "skip", "count"}){
                     skipstop = skipstop_t;
                     for (string team : {"team", "teamvs"}){
+                        if(skipset[skipstop] == NULL || skipset[skipstop][team] == NULL)
+                            continue;
                         Php::Value context;
                         context["team"] = skipset[skipstop][team] != NULL ? team : NULL;
                         string context_team = context["team"];
@@ -812,7 +816,7 @@ Php::Value interpreter(Php::Parameters &params)
                 while(formula_t.find(" not ") != std::string::npos){
                     formula_t.replace(formula_t.find(" not "), 5, " ");
                 }
-                clean(formula_t);
+                clean(formula_t, false);
 
                 Php::Value formula_args = trim_explode(" ", formula_t);
 
@@ -857,9 +861,13 @@ Php::Value interpreter(Php::Parameters &params)
                             string t1 = parts[1];
                             ev1 = left_t;
                             var1 = t1;
-                            if(q[left_t] == NULL){
-                                // only a qualifier
-                                testEventQualifierConditions(primary, left_t, primary, conditions, q);
+                            if(q[ev1] == NULL){
+                                if(isEventCondition(ev1, conditions, primary)){
+                                    findEvent(ev1, conditions, skips, step, step, events, q, primary, all_i, it);
+                                }else{
+                                    // only a qualifier
+                                    testEventQualifierConditions(primary, ev1, primary, conditions, q);
+                                }
                             }
                         }else{ // 3
                             string left_t = parts[0];
@@ -880,9 +888,13 @@ Php::Value interpreter(Php::Parameters &params)
                                 string t2 = parts[1];
                                 ev2 = right_t;
                                 var2 = t2;
-                                if(q[right_t] == NULL){
-                                    // only a qualifier
-                                    testEventQualifierConditions(primary, right_t, primary, conditions, q);
+                                if(q[ev2] == NULL){
+                                    if(isEventCondition(ev2, conditions, primary)){
+                                        findEvent(ev2, conditions, skips, step, step, events, q, primary, all_i, it);
+                                    }else{
+                                        // only a qualifier
+                                        testEventQualifierConditions(primary, ev2, primary, conditions, q);
+                                    }
                                 }
                             }else{ // 3
                                 string right_t = parts[0];
@@ -898,15 +910,23 @@ Php::Value interpreter(Php::Parameters &params)
                         }else{
                             var2 = right;
                         }
+                        if (var1 == "tid")
+                            var1 = "typeId";
+                        else if(var1 == "qid")
+                            var1 = "qualifierId";
                         string l = q[ev1][var1];
                         string r;
-                        if(ev2.empty()){
+                        if(!ev2.empty()){
+                            if (var2 == "tid")
+                                var2 = "typeId";
+                            else if(var2 == "qid")
+                                var2 = "qualifierId";
                             string t = q[ev2][var2];
                             r = t;
                         }else{
                             r = var2;
                         }
-                        q[arg] = eval_with_op(op, l, r);
+                        q[arg] = eval_with_op(l, r, op);
                     }
                 }
 
