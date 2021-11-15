@@ -291,7 +291,8 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                     rule.replace(rule.find("sec"), 3, "");
                 } else {
                     within_type = "steps";
-                    rule.replace(rule.find("steps"), 5, "");
+                    if (rule.find("steps") != std::string::npos)
+                        rule.replace(rule.find("steps"), 5, "");
                 }
                 Php::Value args = trim_explode("=", rule);
                 within = args[1];
@@ -360,6 +361,20 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
     else
         which = 2;
 
+    /*Php::Value lol;
+    lol[0] = which;
+    lol[1] = conditions;
+    lol[3] = skips;
+    lol[4] = index;
+    lol[5] = primary_index;
+    lol[6] = q;
+    lol[7] = primary;
+    lol[8] = all_i;
+    lol[9] = it;
+    lol[10] = events;
+    q = lol;
+    return false;*/
+
     if (start == step || direction == 1 && start > end || direction == -1 && start < end) {
         q[name] = false;
         return false;
@@ -387,6 +402,7 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                 end = 0;
             continue;
         }
+
         // check if skip event
         if(skips != NULL){
             bool xdo = false;
@@ -535,7 +551,7 @@ bool testEventQualifierConditions(string &name, string &qname, string primary, P
     return false;
 }
 
-string getAbstractValue(string name, string query, Php::Value &conditions, Php::Value &skips, int index, int primary_index, Php::Value &events, Php::Value &q, string &primary, vector<string> &all_i, vector<string> &it){
+string getAbstractValue(string name, string query, Php::Value &conditions, Php::Value &skips, int index, int primary_index, Php::Value &events, Php::Value &q, string &primary, vector<string> &all_i, vector<string> &it, bool isLeft = true){
     Php::Value sides = trim_explode(".", query);
 
     string fquery;
@@ -592,6 +608,9 @@ string getAbstractValue(string name, string query, Php::Value &conditions, Php::
             }
         }else{
             // is qualifier
+            if(!isLeft)
+                name = primary;
+
             fquery = name+"."+qname;
 
             if(q[name] == NULL){
@@ -687,7 +706,7 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
             string left;
             string right;
             if(!is_numeric(side_s) && side_s.find_first_of('.') != std::string::npos){
-                string left_t = getAbstractValue(name, side_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
+                string left_t = getAbstractValue(name, side_s, conditions, skips, index, primary_index, events, q, primary, all_i, it, false);
                 left = left_t;
                 if(left_t == "Q NOT SET / VALUE NOT FOUND"){
                     q[name] = false;
@@ -712,7 +731,7 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
                 // check if right side another abstract value
                 string right_s = sides[1];
                 if(!is_numeric(right_s) && right_s.find_first_of('.') != std::string::npos){
-                    string right_st = getAbstractValue(name, right_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
+                    string right_st = getAbstractValue(name, right_s, conditions, skips, index, primary_index, events, q, primary, all_i, it, false);
                     right = right_st;
                     if(right == "Q NOT SET / VALUE NOT FOUND"){
                        q[name] = false;
