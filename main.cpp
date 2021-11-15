@@ -245,16 +245,6 @@ bool looper(int which, int s, int times, int j, int end){
 
 bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int primary_index, int index, Php::Value &events, Php::Value &q, string &primary, vector<string> &all_i, vector<string> &it){
 
-    /*q["primary_index"] = primary_index;
-    q["start"] = start;
-    q["end"] = end;
-    q["directon"] = direction;
-    q["times"] = times;
-    q["which"] = which;
-    q["s"] = s;
-    q["within"] = within;
-    return false;*/
-
     if(in_array(name, it))
         throw std::invalid_argument("circular reference");
     it.push_back(name);
@@ -388,7 +378,8 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
         }else
             i = j;
 
-        if(events[i]["typeId"] == 43){
+        string tid_t = events[i]["typeId"];
+        if(tid_t == "43"){
             end += direction;
             if (end > events.size() - 1)
                 end = events.size() - 1;
@@ -501,6 +492,7 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                 }
             }
         }
+
         if(testConditions(name, conditions, skipsets, i, primary_index, events, q, primary, all_i, it))
             s++;
         if (s >= times && q[name] != false) {
@@ -902,6 +894,13 @@ Php::Value interpreter(Php::Parameters &params)
                 // sort by length so we dont accidentally replace wrong values
                 Php::Value sorted_args;
                 int i = 0;
+
+                // unique
+                vector<string> vec = formula_args;
+                sort( vec.begin(), vec.end() );
+                vec.erase( unique( vec.begin(), vec.end() ), vec.end() );
+                formula_args = vec;
+
                 while (sorted_args.size() < formula_args.size()){
                     int s = 0;
                     string max = "";
@@ -920,6 +919,8 @@ Php::Value interpreter(Php::Parameters &params)
 
                 for (auto&& [x, arg_t] : sorted_args){
                     string arg = arg_t;
+                    if(arg == "")
+                        continue;
                     if(q[arg] == false || q[arg] == NULL){
                         while(formula.find(arg) != std::string::npos){
                             formula.replace(formula.find(arg), arg.length(), "false");
