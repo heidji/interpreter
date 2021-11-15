@@ -378,7 +378,7 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
     return false;*/
 
     if (start == step || direction == 1 && start > end || direction == -1 && start < end) {
-        q[name] = false;
+        q[name] = -1;
         return false;
     }
     int around_alternator = 1;
@@ -497,7 +497,7 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
             finish:;
             if(xdo){
                 if(skipstop == "stop"){
-                    q[name] = false;
+                    q[name] = -1;
                     return false;
                 }else if(skipstop == "skip") {
                     end += direction;
@@ -520,7 +520,7 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
         }
     }
 
-    q[name] = false;
+    q[name] = -1;
     return false;
 }
 
@@ -549,9 +549,9 @@ bool testEventQualifierConditions(string &name, string &qname, string primary, P
         return true;
         cnt:;
     }
-    q[name+"."+qname] = false;
+    q[name+"."+qname] = -1;
     if(name == primary)
-        q[qname] = false;
+        q[qname] = -1;
     return false;
 }
 
@@ -573,7 +573,7 @@ string getAbstractValue(string name, string query, Php::Value &conditions, Php::
             if(q[name] == NULL){
                 findEvent(name, conditions, skips, index, primary_index, events, q, primary, all_i, it);
             }
-            if(q[name] == false){
+            if(q[name] == -1){
                 return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
             }else{
                 if(q[name+"."+qname] == NULL){
@@ -587,11 +587,11 @@ string getAbstractValue(string name, string query, Php::Value &conditions, Php::
                         xd = q[name+"."+qname];
                         q[qname] = xd;
                     }
-                }else if(q[name+"."+qname] == false){
+                }else if(q[name+"."+qname] == -1){
                     return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
                 }
             }
-        }else if(q[name+"."+qname] == false){
+        }else if(q[name+"."+qname] == -1){
             return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
         }
     }else{
@@ -607,7 +607,7 @@ string getAbstractValue(string name, string query, Php::Value &conditions, Php::
             if(q[name] == NULL){
                 findEvent(name, conditions, skips, index, primary_index, events, q, primary, all_i, it);
             }
-            if(q[name] == false){
+            if(q[name] == -1){
                 return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
             }
         }else{
@@ -620,7 +620,7 @@ string getAbstractValue(string name, string query, Php::Value &conditions, Php::
             if(q[name] == NULL){
                 findEvent(name, conditions, skips, index, primary_index, events, q, primary, all_i, it);
             }
-            if(q[name] == false){
+            if(q[name] == -1){
                 return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
             }else{
                 if(q[name+"."+qname] == NULL){
@@ -633,7 +633,7 @@ string getAbstractValue(string name, string query, Php::Value &conditions, Php::
                         xd = q[name+"."+qname];
                         q[qname] = xd;
                     }
-                }else if(q[name+"."+qname] == false){
+                }else if(q[name+"."+qname] == -1){
                     return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
                 }
             }
@@ -701,7 +701,7 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
                 string left = q[name+"."+neg_qual][left_t];
                 // TODO add more cases for abstract right hand side stuff (probably pointless / but theres a function for it)
                 if(!eval_with_op(left, right, op)){
-                    q[name] = false;
+                    q[name] = -1;
                     return false;
                 }
             }
@@ -713,7 +713,7 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
                 string left_t = getAbstractValue(name, side_s, conditions, skips, index, primary_index, events, q, primary, all_i, it, false);
                 left = left_t;
                 if(left_t == "Q NOT SET / VALUE NOT FOUND"){
-                    q[name] = false;
+                    q[name] = -1;
                     return false;
                 }
                 string right_s = sides[1];
@@ -721,7 +721,7 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
                     string right_st = getAbstractValue(name, right_s, conditions, skips, index, primary_index, events, q, primary, all_i, it);
                     right = right_st;
                     if(right == "Q NOT SET / VALUE NOT FOUND"){
-                       q[name] = false;
+                       q[name] = -1;
                         return false;
                     }
                 }else{
@@ -738,7 +738,7 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
                     string right_st = getAbstractValue(name, right_s, conditions, skips, index, primary_index, events, q, primary, all_i, it, false);
                     right = right_st;
                     if(right == "Q NOT SET / VALUE NOT FOUND"){
-                       q[name] = false;
+                       q[name] = -1;
                        return false;
                     }
                 }else{
@@ -747,7 +747,7 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
             }
 
             if(!eval_with_op(left, right, op)){
-                q[name] = false;
+                q[name] = -1;
                 return false;
             }
         }
@@ -833,8 +833,8 @@ Php::Value interpreter(Php::Parameters &params)
                                 if(q[part_1] == NULL){
                                     findEvent(part_1, conditions, skips, step, step, events, q, primary, all_i, it);
                                 }
-                                if(q[part_1] == false){
-                                    q[arg] = false;
+                                if(q[part_1] == -1){
+                                    q[arg] = -1;
                                 }else{
                                     testEventQualifierConditions(part_1, part_2, primary, conditions, q);
                                 }
@@ -960,7 +960,7 @@ Php::Value interpreter(Php::Parameters &params)
                     string arg = arg_t;
                     if(arg == "")
                         continue;
-                    if(q[arg] == false || q[arg] == NULL){
+                    if(q[arg] == -1 || q[arg] == NULL){
                         while(formula.find(arg) != std::string::npos){
                             formula.replace(formula.find(arg), arg.length(), "false");
                         }
