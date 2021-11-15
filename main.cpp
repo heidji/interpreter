@@ -378,7 +378,7 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
 
     for (j = start; looper(which, s, times, j, end); j += direction) {
         if(selector == "around") {
-            int i = ((j-start) * around_alternator)+start;
+            i = ((j-start) * around_alternator)+start;
             if(around_alternator == 1){
                 j--; // skip a beat
             }
@@ -396,7 +396,6 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                 end = 0;
             continue;
         }
-
         // check if skip event
         if(skips != NULL){
             bool xdo = false;
@@ -406,22 +405,24 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                 for (string skipstop_t : {"stop", "skip", "count"}){
                     skipstop = skipstop_t;
                     for (string team : {"team", "teamvs"}){
-                        loop_rst:;
                         Php::Value context;
                         context["team"] = skipset[skipstop][team] != NULL ? team : NULL;
                         string context_team = context["team"];
                         context["is"] = skipset[skipstop][context_team]["is"] != NULL ? "is" : (skipset[skipstop][context_team]["is_not"] != NULL ? "is_not" : NULL);
                         string context_is = context["is"];
-                        if(!context_team.empty() && (context_team == "team" && q[primary]["contestantId"] == events[i]["contestantId"] || context_team == "teamvs" && q[primary]["contestantId"] != events[i]["contestantId"])) {
+                        string p_contestantId = q[primary]["contestantId"];
+                        string e_contestantId = events[i]["contestantId"];
+                        if(!context_team.empty() && (context_team == "team" && p_contestantId == e_contestantId || context_team == "teamvs" && p_contestantId != e_contestantId)) {
+                            bool hack3;
                             if(context_is == "is")
                                 xdo = false;
                             else
                                 xdo = true;
                             Php::Value skipset_st = skipset[skipstop][context_team][context_is];
                             for (auto&& [x, ruleset] : skipset_st){
-                                loop_rs:;
+                                bool hack2 = false;;
                                 for (auto&& [var_t, items] : ruleset){
-                                    loop_r:;
+                                    bool hack = false;
                                     string var = var_t;
                                     if(!items.isArray()){
                                         Php::Value temp_items;
@@ -435,26 +436,37 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                                         if(!in_array(var, {"qid", "qualifierId"})){
                                             string evar_t = events[i][var];
                                             if(evar_t == value){
-                                                goto loop_r;
+                                                hack = true;
+                                                break;
                                             }
                                         }else{
                                             Php::Value eq_t = events[i]["qualifier"];
                                             for (auto&& [xx, qualifier] : eq_t){
                                                 string qualid_t = qualifier["qualifierId"];
                                                 if(qualid_t == value){
-                                                    goto loop_rs;
+                                                    hack = true;
+                                                    break;
                                                 }
                                             }
+                                            if(hack)
+                                                break;
                                         }
                                     }
+                                    if(hack)
+                                        continue;
                                     // no match
                                     Php::Value skipset_t = skipset[skipstop][context_team][context_is];
                                     if(x == skipset_t.size()-1){
                                         goto finish;
+                                    }else{
+                                        hack2 = true;
                                     }
-                                    else
-                                        goto loop_rs;
+                                    if(hack2){
+                                        break;
+                                    }
                                 }
+                                if(hack2)
+                                    continue;
                                 if(context_is == "is"){
                                     // found match -> skip
                                     xdo = true;
@@ -462,8 +474,10 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                                 }else{
                                     // found match -> skip
                                     xdo = false;
-                                    goto loop_rst;
+                                    hack3 = true;
                                 }
+                                if(hack3)
+                                    break;
                             }
                         }
                     }
@@ -487,10 +501,8 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                 }
             }
         }
-
         if(testConditions(name, conditions, skipsets, i, primary_index, events, q, primary, all_i, it))
             s++;
-
         if (s >= times && q[name] != false) {
             return true;
         }
@@ -500,7 +512,7 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
     return false;
 }
 
-bool testEventQualifierConditions(string &name, string &qname, Php::Value &conditions, Php::Value &q){
+bool testEventQualifierConditions(string &name, string &qname, string primary, Php::Value &conditions, Php::Value &q){
     Php::Value qualifier = q[name]["qualifier"];
     Php::Value args = trim_explode(",", conditions[qname]);
 
@@ -520,10 +532,14 @@ bool testEventQualifierConditions(string &name, string &qname, Php::Value &condi
         }
         // passed all wow
         q[name+"."+qname] = qual;
+        if(name == primary)
+            q[qname] = qual;
         return true;
         cnt:;
     }
     q[name+"."+qname] = false;
+    if(name == primary)
+        q[qname] = false;
     return false;
 }
 
@@ -549,7 +565,7 @@ string getAbstractValue(string name, string query, Php::Value &conditions, Php::
                 return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
             }else{
                 if(q[name+"."+qname] == NULL){
-                    if(!testEventQualifierConditions(name, qname, conditions, q)){
+                    if(!testEventQualifierConditions(name, qname, primary, conditions, q)){
                         return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
                     }
                     // additional setter for future evals
@@ -593,7 +609,7 @@ string getAbstractValue(string name, string query, Php::Value &conditions, Php::
                 return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
             }else{
                 if(q[name+"."+qname] == NULL){
-                    if(!testEventQualifierConditions(name, qname, conditions, q)){
+                    if(!testEventQualifierConditions(name, qname, primary, conditions, q)){
                         return "Q NOT SET / VALUE NOT FOUND"; // equivalent for false
                     }
                     // additional setter for future evals
@@ -664,12 +680,12 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
             Php::Value temp = trim_explode(".", side_s);
             string neg_qual = temp[0];
             neg_qual.erase(0, 1);
-            if(testEventQualifierConditions(name, neg_qual, conditions, q)){
+            if(testEventQualifierConditions(name, neg_qual, primary, conditions, q)){
                 string left_t = temp[1];
                 string right = sides[0];
                 string left = q[name+"."+neg_qual][left_t];
                 // TODO add more cases for abstract right hand side stuff (probably pointless / but theres a function for it)
-                if(eval_with_op(left, right, op)){
+                if(!eval_with_op(left, right, op)){
                     q[name] = false;
                     return false;
                 }
@@ -805,14 +821,14 @@ Php::Value interpreter(Php::Parameters &params)
                                 if(q[part_1] == false){
                                     q[arg] = false;
                                 }else{
-                                    testEventQualifierConditions(part_1, part_2, conditions, q);
+                                    testEventQualifierConditions(part_1, part_2, primary, conditions, q);
                                 }
                             }else{
                                 if(isEventCondition(arg, conditions, primary)){
                                     findEvent(arg, conditions, skips, step, step, events, q, primary, all_i, it);
                                 }else{
                                     // only a qualifier
-                                    testEventQualifierConditions(primary, arg, conditions, q);
+                                    testEventQualifierConditions(primary, arg, primary, conditions, q);
                                 }
                             }
                         }
@@ -832,7 +848,7 @@ Php::Value interpreter(Php::Parameters &params)
                             var1 = t1;
                             if(q[left_t] == NULL){
                                 // only a qualifier
-                                testEventQualifierConditions(primary, left_t, conditions, q);
+                                testEventQualifierConditions(primary, left_t, primary, conditions, q);
                             }
                         }else{ // 3
                             string left_t = parts[0];
@@ -842,7 +858,7 @@ Php::Value interpreter(Php::Parameters &params)
                             var1 = t1;
                             if(q[left_t] == NULL){
                                 // only a qualifier
-                                testEventQualifierConditions(left_t, left_tt, conditions, q);
+                                testEventQualifierConditions(left_t, left_tt, primary, conditions, q);
                             }
                         }
 
@@ -855,7 +871,7 @@ Php::Value interpreter(Php::Parameters &params)
                                 var2 = t2;
                                 if(q[right_t] == NULL){
                                     // only a qualifier
-                                    testEventQualifierConditions(primary, right_t, conditions, q);
+                                    testEventQualifierConditions(primary, right_t, primary, conditions, q);
                                 }
                             }else{ // 3
                                 string right_t = parts[0];
@@ -865,7 +881,7 @@ Php::Value interpreter(Php::Parameters &params)
                                 var2 = t2;
                                 if(q[right_t] == NULL){
                                     // only a qualifier
-                                    testEventQualifierConditions(right_t, right_tt, conditions, q);
+                                    testEventQualifierConditions(right_t, right_tt, primary, conditions, q);
                                 }
                             }
                         }else{
@@ -888,9 +904,11 @@ Php::Value interpreter(Php::Parameters &params)
                 int i = 0;
                 while (sorted_args.size() < formula_args.size()){
                     int s = 0;
-                    string max;
+                    string max = "";
                     for (auto&& [x, arg_t] : formula_args){
                         string arg = arg_t;
+                        if(in_array(arg, sorted_args))
+                            continue;
                         if(arg.length() > s){
                             max = arg;
                             s = arg.length();
