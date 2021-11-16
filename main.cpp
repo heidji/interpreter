@@ -87,12 +87,11 @@ struct conditions_t
     map<string, condition_t> conditions;
 
     string toString(int c = 0){
-        string s = k(c) + "conditions: {\n";
+        string s = "";
         for (auto &&[key, v] : conditions)
         {
             s += k(c + 1) + key + ":{ \n" + v.toString(c + 2) + "\n" + k(c + 1) + "},\n";
         }
-        s += "\n" + k(c) + "}";
         return s;
     }
 };
@@ -121,6 +120,10 @@ struct cpp_t
 {
     formula_t formula;
     conditions_t conditions;
+
+    string toString(int c = 0){
+        return k(c) + "conditions: {\n" + conditions.toString(c + 1) + "\n" + k(c) + "\n}";
+    }
 };
 
 struct code_t
@@ -131,14 +134,15 @@ struct code_t
     map<string, string> values;
     cpp_t cpp;
 
-    string toString()
+    string toString(int c = 0)
     {
         string s;
-        s = "primary: " + primary + ",\nformula: " + formula + ",\nconditions = {\n";
-        for(auto&& [k, v] : conditions){
-            s += "\t" + k + ": " + v + ",\n";
+        s = k(c) + "primary: " + primary + "\nformula: " + formula + "\nconditions: {\n";
+        for(auto&& [key, v] : conditions){
+            s += k(c + 1) + key + ": " + v + "\n";
         }
-        s += "],\n";
+        s += "\n" + k(c) + "}\n";
+        s += k(c) + "cpp: {\n" + cpp.toString(c + 1) + k(c + 1) + "},\n";
         return s;
     }
 };
@@ -1024,7 +1028,8 @@ Php::Value interpreter(Php::Parameters &params)
                 }
                 cs.conditions[name] = cond;
             }
-            return cs.toString();
+            c.cpp.conditions = cs;
+            return c.toString();
             code_block.push_back(c);
         }
         code[i_event_name] = code_block;
