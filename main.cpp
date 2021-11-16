@@ -419,7 +419,13 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
                         Php::Value context;
                         context["team"] = skipset[skipstop][team] != NULL ? team : NULL;
                         string context_team = context["team"];
-                        context["is"] = skipset[skipstop][context_team]["is"] != NULL ? "is" : (skipset[skipstop][context_team]["is_not"] != NULL ? "is_not" : NULL);
+                        if(skipset[skipstop][context_team]["is_not"] != NULL){
+                            context["is"] = "is_not";
+                        }else if(skipset[skipstop][context_team]["is"] != NULL){
+                            context["is"] = "is";
+                        }else{
+                            break;
+                        }
                         string context_is = context["is"];
                         string p_contestantId = q[primary]["contestantId"];
                         string e_contestantId = events[i]["contestantId"];
@@ -767,10 +773,10 @@ Php::Value interpreter(Php::Parameters &params)
     std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
     return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();*/
 
-    auto events = params[0];
-    auto code = params[1];
+    auto code = params[0];
+    auto events = params[1];
 
-    Php::Value collection, temp, args, sides;
+    Php::Value collection;
 
     vector<string> all_i, it;
 
@@ -795,6 +801,8 @@ Php::Value interpreter(Php::Parameters &params)
                 Php::Value skips;
                 if(instruction["skips"] != NULL)
                     skips = instruction["skips"];
+                else
+                    skips = NULL;
                 if(!testConditions(primary, conditions, skips, step, step, events, q, primary, all_i, it))
                     continue;
                 // eval formula
