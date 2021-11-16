@@ -406,118 +406,8 @@ bool findEvent(string &name, Php::Value &conditions, Php::Value &skipsets, int p
         }
 
         // check if skip event
-        if(skips != NULL){
-            bool xdo = false;
-            for (auto&& [n, skip_t] : skips){
-                string skip = skip_t;
-                Php::Value skipset = skipsets[skip];
-                for (string skipstop_t : {"stop", "skip", "count"}){
-                    skipstop = skipstop_t;
-                    for (string team : {"team", "teamvs"}){
-                        if(skipset[skipstop] == NULL || skipset[skipstop][team] == NULL)
-                            continue;
-                        Php::Value context;
-                        context["team"] = skipset[skipstop][team] != NULL ? team : NULL;
-                        string context_team = context["team"];
-                        if(skipset[skipstop][context_team]["is_not"] != NULL){
-                            context["is"] = "is_not";
-                        }else if(skipset[skipstop][context_team]["is"] != NULL){
-                            context["is"] = "is";
-                        }else{
-                            break;
-                        }
-                        string context_is = context["is"];
-                        string p_contestantId = q[primary]["contestantId"];
-                        string e_contestantId = events[i]["contestantId"];
-                        if(!context_team.empty() && (context_team == "team" && p_contestantId == e_contestantId || context_team == "teamvs" && p_contestantId != e_contestantId)) {
-                            bool hack3;
-                            if(context_is == "is")
-                                xdo = false;
-                            else
-                                xdo = true;
-                            Php::Value skipset_st = skipset[skipstop][context_team][context_is];
-                            for (auto&& [x, ruleset] : skipset_st){
-                                bool hack2 = false;;
-                                for (auto&& [var_t, items] : ruleset){
-                                    bool hack = false;
-                                    string var = var_t;
-                                    if(!items.isArray()){
-                                        Php::Value temp_items;
-                                        temp_items[0] = items;
-                                        Php::Value items = temp_items;
-                                    }
-                                    for (auto&& [xx, value_t] : items){
-                                        string value = value_t;
-                                        if(var == "tid")
-                                            var = "typeId";
-                                        if(!in_array(var, {"qid", "qualifierId"})){
-                                            string evar_t = events[i][var];
-                                            if(evar_t == value){
-                                                hack = true;
-                                                break;
-                                            }
-                                        }else{
-                                            Php::Value eq_t = events[i]["qualifier"];
-                                            for (auto&& [xx, qualifier] : eq_t){
-                                                string qualid_t = qualifier["qualifierId"];
-                                                if(qualid_t == value){
-                                                    hack = true;
-                                                    break;
-                                                }
-                                            }
-                                            if(hack)
-                                                break;
-                                        }
-                                    }
-                                    if(hack)
-                                        continue;
-                                    // no match
-                                    Php::Value skipset_t = skipset[skipstop][context_team][context_is];
-                                    if(x == skipset_t.size()-1){
-                                        goto finish;
-                                    }else{
-                                        hack2 = true;
-                                    }
-                                    if(hack2){
-                                        break;
-                                    }
-                                }
-                                if(hack2)
-                                    continue;
-                                if(context_is == "is"){
-                                    // found match -> skip
-                                    xdo = true;
-                                    goto finish;
-                                }else{
-                                    // found match -> skip
-                                    xdo = false;
-                                    hack3 = true;
-                                }
-                                if(hack3)
-                                    break;
-                            }
-                        }
-                    }
-                }
-            }
-            finish:;
-            if(xdo){
-                if(skipstop == "stop"){
-                    q[name] = -1;
-                    return false;
-                }else if(skipstop == "skip") {
-                    end += direction;
-                    if (end > events.size() - 1)
-                        end = events.size() - 1;
-                    else if (end < 0)
-                        end = 0;
-                    continue;
-                }else if(skipstop == "count"){
-                    s++;
-                    continue;
-                }
-            }
-        }
+        // TODO SKIPS
+        // TODO SKIPS
 
         if(testConditions(name, conditions, skipsets, i, primary_index, events, q, primary, all_i, it))
             s++;
@@ -849,6 +739,11 @@ Php::Value interpreter(Php::Parameters &params)
                             }else{
                                 if(isEventCondition(arg, conditions, primary)){
                                     findEvent(arg, conditions, skips, step, step, events, q, primary, all_i, it);
+                                    string xD = q[primary]["id"];
+                                    if (xD == "2227838703")
+                                    {
+                                        return q;
+                                    }
                                 }else{
                                     // only a qualifier
                                     testEventQualifierConditions(primary, arg, primary, conditions, q);
