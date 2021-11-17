@@ -167,25 +167,25 @@ struct instruction_t
                     // team / teamvs
                     for (auto &&[key4, v4] : v3)
                     {
-                        s += k(c + 4) + key4 + ": { \n";
+                        s += k(c + 4) + key4 + ": [ \n";
                         // is / is_not
                         for (map<string, vector<string>> v5 : v4)
                         {
-                            s += k(c + 5) + "[ \n";
+                            s += k(c + 5) + "{ \n";
                             // elems
                             for (auto &&[key6, v6] : v5)
                             {
-                                s += k(c + 6) + key6 + ": { \n";
+                                s += k(c + 6) + key6 + ": [ \n";
                                 // values
                                 for (string v7 : v6)
                                 {
                                     s += k(c + 7) + v7 + "\n";
                                 }
-                                s += k(c + 6) + "}\n";
+                                s += k(c + 6) + "]\n";
                             }
-                            s += k(c + 5) + "]\n";
+                            s += k(c + 5) + "}\n";
                         }
-                        s += k(c + 4) + "}\n";
+                        s += k(c + 4) + "]\n";
                     }
                     s += k(c + 3) + "}\n";
                 }
@@ -1025,19 +1025,35 @@ Php::Value interpreter(Php::Parameters &params)
             c.formula = formula_s;
             map<string, string> values_s = instruction["values"];
             c.values = values_s;
-
-            // skips
             map<string, map<string, map<string, map<string, vector<map<string, vector<string>>>>>>> skips_s = instruction["skips"];
             c.skips = skips_s;
-            /*if(instruction["skips"] != NULL){
-                Php::Value skips_php = instruction["skips"];
-                for (auto &&[block, instruction] : skips_php){
-
+            // replace vars in skips
+            for (auto &&[skip_k, skip_v] : c.skips)
+            {
+                for (auto &&[skipstop_k, skipstop_v] : skip_v)
+                {
+                    for (auto &&[team_k, team_v] : skipstop_v)
+                    {
+                        for (auto &&[is_k, is_v] : team_v)
+                        {
+                            for (size_t skipcond_k = 0; skipcond_k < is_v.size(); ++skipcond_k){
+                                for (auto &&[val_k, val_v] : is_v[skipcond_k])
+                                {
+                                    if(val_k == "tid"){
+                                        c.skips[skip_k][skipstop_k][team_k][is_k][skipcond_k]["typeId"] = val_v;
+                                        c.skips[skip_k][skipstop_k][team_k][is_k][skipcond_k].erase(val_k);
+                                    }else if(val_k == "qid"){
+                                        c.skips[skip_k][skipstop_k][team_k][is_k][skipcond_k]["qualifierId"] = val_v;
+                                        c.skips[skip_k][skipstop_k][team_k][is_k][skipcond_k].erase(val_k);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-            }*/
+            }
 
             // create cpp node
-
             conditions_t cs;
             for (auto const &[name, condition] : c.conditions)
             {
