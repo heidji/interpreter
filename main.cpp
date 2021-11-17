@@ -21,7 +21,7 @@ string bool2str(bool x)
 
 string k(int c)
 {
-    string s;
+    string s = "";
     for (int i = 0; i < c; i++)
     {
         s += "\t";
@@ -32,12 +32,37 @@ string k(int c)
 struct qualifier_t
 {
     map<string, string> params;
+
+    string toString(int c = 0){
+        string s = "";
+        for(auto&& [key, v] : params){
+            s += k(c) + key + ": " + v + "\n";
+        }
+        return s;
+    }
 };
 
 struct event_t
 {
+    int time = 0;
     map<string, string> params;
-    qualifier_t qualifier;
+    vector<qualifier_t> qualifier;
+
+    string toString(int c = 0)
+    {
+        string s = k(c) + "time: "+to_string(time)+"\n"+k(c)+"params: {\n";
+        for (auto &&[key, v] : params)
+        {
+            s += k(c+1) + key + ": " + v + "\n";
+        }
+        s += k(c) + "}\n" + k(c) + "qualifier: [\n";
+        for (qualifier_t v : qualifier)
+        {
+            s += v.toString(c+1) + "\n";
+        }
+        s += "\n" + k(c) + "]";
+        return s;
+    }
 };
 
 struct rule_side_t
@@ -243,6 +268,18 @@ string code2string(map<string, vector<instruction_t>> m, int c = 0)
     return s;
 }
 
+string events2string(vector<event_t> m, int c = 0)
+{
+    string s;
+    s += k(c) + "[\n";
+    for (event_t i : m)
+    {
+        s += i.toString(c + 1) + ",\n";
+    }
+    s += "\n" + k(c) + "]\n";
+    return s;
+}
+
 bool is_numeric(string s)
 {
     return !s.empty() && s.find_first_not_of("-.0123456789") == std::string::npos;
@@ -265,12 +302,12 @@ int strtotime(string date)
     stringstream minValue(date.substr(14, 2));
     int min;
     minValue >> min;
-    stringstream secValue(date.substr(14, 2));
+    stringstream secValue(date.substr(17, 2));
     int sec;
     secValue >> sec;
 
     // approximation for comparison purposes only
-    return ((((year * 12 + month) * 30 + day) * 24 + hour) * 60 + min) * 60 + sec;
+    return (((((year - 2000) * 12 + month) * 30 + day) * 24 + hour) * 60 + min) * 60 + sec;
 }
 
 string trim(string str)
@@ -1029,7 +1066,7 @@ Php::Value interpreter(Php::Parameters &params)
     return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();*/
 
     auto code_php = params[0];
-    auto events = params[1];
+    auto events_php = params[1];
 
     // normalize code object
     map<string, vector<instruction_t>> code;
@@ -1316,8 +1353,35 @@ Php::Value interpreter(Php::Parameters &params)
         }
         code[i_event_name] = code_block;
     }
+    //return code2string(code);
 
-    return code2string(code);
+    vector<event_t> events;
+    for (auto &&[step_t, event_php] : events_php){
+        event_t event;
+        for (auto &&[k, v] : event_php){
+            if(k != "qualifier"){
+                string s = v;
+                event.params[k] = s;
+            }else{
+                qualifier_t qualifier;
+                for (auto &&[kq, vq] : event_php["qualifier"]){
+                    for (auto &&[kqq, vqq] : vq){
+                        string s = vqq;
+                        qualifier.params[kqq] = s;
+                    }
+                    event.qualifier.push_back(qualifier);
+                }
+            }
+        }
+        event.time = strtotime(event.params["timeStamp"]);
+        events.push_back(event);
+    }
+    //return events2string(events);
+
+    // type conversions complete / begin query
+
+
+
 
     /*Php::Value collection;
 
