@@ -122,7 +122,7 @@ struct cpp_t
     conditions_t conditions;
 
     string toString(int c = 0){
-        return k(c) + "conditions: {\n" + conditions.toString(c + 1) + "\n" + k(c) + "\n}";
+        return k(c) + "conditions: {\n" + conditions.toString(c + 1) + "\n" + k(c+1) + "}" + k(c) + "\n";
     }
 };
 
