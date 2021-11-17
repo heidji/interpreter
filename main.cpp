@@ -14,13 +14,16 @@
 using namespace std;
 using namespace std::chrono;
 
-string bool2str(bool x){
+string bool2str(bool x)
+{
     return x ? "true" : "false";
 }
 
-string k(int c){
+string k(int c)
+{
     string s;
-    for(int i = 0; i < c; i++){
+    for (int i = 0; i < c; i++)
+    {
         s += "\t";
     }
     return s;
@@ -50,7 +53,7 @@ struct rule_side_t
     string toString(int c = 0)
     {
         return k(c) + "event: " + event + "\n" + k(c) + "qualifier: " + qualifier + "\n" + k(c) + "var: " + var + "\n" + k(c) + "abstract: " +
-            bool2str(abstract) + "\n" + k(c) + "constant: " + bool2str(constant) + "\n" + k(c) + "numeric: " + bool2str(numeric) + "\n" + k(c) + "eventselector: " + bool2str(eventselector);
+               bool2str(abstract) + "\n" + k(c) + "constant: " + bool2str(constant) + "\n" + k(c) + "numeric: " + bool2str(numeric) + "\n" + k(c) + "eventselector: " + bool2str(eventselector);
     }
 };
 
@@ -61,7 +64,8 @@ struct rule_t
     rule_side_t left;
     rule_side_t right;
 
-    string toString(int c = 0){
+    string toString(int c = 0)
+    {
         return k(c) + "isNot: " + bool2str(isNot) + "\n" + k(c) + "op: " + op + "\n" + k(c) + "left: {\n" + left.toString(c + 1) + "\n" + k(c) + "}\n" + k(c) + "right: {\n" + right.toString(c + 1) + "\n" + k(c) + "}";
     }
 };
@@ -71,7 +75,8 @@ struct condition_t
     bool isEvent = false;
     vector<rule_t> rules;
 
-    string toString(int c = 0){
+    string toString(int c = 0)
+    {
         string s = k(c) + "isEvent: " + bool2str(isEvent) + "\n" + k(c) + "rules: [\n";
         for (rule_t rule : rules)
         {
@@ -86,7 +91,8 @@ struct conditions_t
 {
     map<string, condition_t> conditions;
 
-    string toString(int c = 0){
+    string toString(int c = 0)
+    {
         string s = "";
         for (auto &&[key, v] : conditions)
         {
@@ -121,7 +127,8 @@ struct cpp_t
     formula_t formula;
     conditions_t conditions;
 
-    string toString(int c = 0){
+    string toString(int c = 0)
+    {
         return /*k(c) + "formula: " + formula + "\n" +*/ k(c) + "conditions: {\n" + conditions.toString(c + 1) + "\n" + k(c + 1) + "}" + k(c) + "\n";
     }
 };
@@ -132,14 +139,59 @@ struct instruction_t
     map<string, string> conditions;
     string formula = "";
     map<string, string> values;
+    map<string, map<string, map<string, map<string, vector<map<string, vector<string>>>>>>> skips;
     cpp_t cpp;
 
     string toString(int c = 0)
     {
         string s;
         s = k(c) + "primary: " + primary + "\n" + k(c) + "formula: " + formula + "\n" + k(c) + "conditions: {\n";
-        for(auto&& [key, v] : conditions){
+        for (auto &&[key, v] : conditions)
+        {
             s += k(c + 1) + key + ": " + v + "\n";
+        }
+        s += "\n" + k(c) + "}\n";
+        s += k(c) + "skips: {\n";
+        // s1
+        for (auto &&[key1, v1] : skips)
+        {
+            s += k(c + 1) + key1 + ": { \n";
+            // skip / stop / count
+            for (auto &&[key2, v2] : v1)
+            {
+                s += k(c + 2) + key2 + ": { \n";
+                // team / teamvs
+                for (auto &&[key3, v3] : v2)
+                {
+                    s += k(c + 3) + key3 + ": { \n";
+                    // team / teamvs
+                    for (auto &&[key4, v4] : v3)
+                    {
+                        s += k(c + 4) + key4 + ": { \n";
+                        // is / is_not
+                        for (map<string, vector<string>> v5 : v4)
+                        {
+                            s += k(c + 5) + "[ \n";
+                            // elems
+                            for (auto &&[key6, v6] : v5)
+                            {
+                                s += k(c + 6) + key6 + ": { \n";
+                                // values
+                                for (string v7 : v6)
+                                {
+                                    s += k(c + 7) + v7 + "\n";
+                                }
+                                s += k(c + 6) + "}\n";
+                            }
+                            s += k(c + 5) + "]\n";
+                        }
+                        s += k(c + 4) + "}\n";
+                    }
+                    s += k(c + 3) + "}\n";
+                }
+                s += k(c + 2) + "}\n";
+            }
+            s += k(c + 1) + "}\n";
         }
         s += "\n" + k(c) + "}\n";
         s += k(c) + "cpp: {\n" + cpp.toString(c + 1) + k(c + 1) + "},\n";
@@ -158,7 +210,7 @@ string code2string(map<string, vector<instruction_t>> m, int c = 0)
         {
             s += i.toString(c + 2) + ",\n";
         }
-        s += "\n" + k(c+1) + "]\n";
+        s += "\n" + k(c + 1) + "]\n";
     }
     s += "\n" + k(c) + "}\n";
     return s;
@@ -919,16 +971,19 @@ bool testConditions(string &name, Php::Value &conditions, Php::Value skips, int 
     return true;
 }*/
 
-bool isPrimaryEventSelector(string arg){
+bool isPrimaryEventSelector(string arg)
+{
     vector<string> primary_event_selectors = {"before", "after", "around", "skip", "within"};
-    for(string x : primary_event_selectors){
-        if(arg == x)
+    for (string x : primary_event_selectors)
+    {
+        if (arg == x)
             return true;
     }
     return false;
 }
 
-void replacePredefinedVar(string &var){
+void replacePredefinedVar(string &var)
+{
     if (var == "tid")
         var = "typeId";
     if (var == "qid")
@@ -952,12 +1007,15 @@ Php::Value interpreter(Php::Parameters &params)
     // normalize code object
     map<string, vector<instruction_t>> code;
 
-    for (auto &&[i_event_name, code_blocks] : code_php){
+    for (auto &&[i_event_name, code_blocks] : code_php)
+    {
         vector<instruction_t> code_block;
-        for (auto &&[block, instruction] : code_blocks){
+        for (auto &&[block, instruction] : code_blocks)
+        {
             // get
             struct instruction_t c;
-            if(instruction["primary"] != ""){
+            if (instruction["primary"] != "")
+            {
                 string primary_s = instruction["primary"];
                 c.primary = primary_s;
             }
@@ -968,59 +1026,83 @@ Php::Value interpreter(Php::Parameters &params)
             map<string, string> values_s = instruction["values"];
             c.values = values_s;
 
+            // skips
+            map<string, map<string, map<string, map<string, vector<map<string, vector<string>>>>>>> skips_s = instruction["skips"];
+            c.skips = skips_s;
+            /*if(instruction["skips"] != NULL){
+                Php::Value skips_php = instruction["skips"];
+                for (auto &&[block, instruction] : skips_php){
+
+                }
+            }*/
+
             // create cpp node
 
             conditions_t cs;
-            for (auto const &[name, condition] : c.conditions){
+            for (auto const &[name, condition] : c.conditions)
+            {
                 condition_t cond;
                 cond.isEvent = isEventCondition(name, c.conditions, c.primary);
                 vector<string> args = trim_explode(",", condition);
-                for(string arg : args){
+                for (string arg : args)
+                {
                     rule_t r;
                     // is a NOT condition
-                    if(arg.find_first_of('!') == 0){
+                    if (arg.find_first_of('!') == 0)
+                    {
                         r.isNot = true;
                         arg.replace(0, 1, "");
                     }
                     string op = operands(arg);
                     r.op = op;
                     vector<string> sides = trim_explode(op, arg);
-                    for(string &side : sides){
+                    for (string &side : sides)
+                    {
                         rule_side_t s;
                         int i = &side - &sides[0];
                         string which;
-                        if(i == 0)
+                        if (i == 0)
                             which = "left";
                         else
                             which = "right";
                         bool isNumeric = is_numeric(side);
-                        if(!isNumeric && side.find_first_of('.') != string::npos){
+                        if (!isNumeric && side.find_first_of('.') != string::npos)
+                        {
                             // abstract
                             s.abstract = true;
                             s.numeric = false;
                             s.constant = false;
                             vector<string> broken_args = trim_explode(".", side);
-                            if(broken_args.size() == 3){
+                            if (broken_args.size() == 3)
+                            {
                                 // simplest identifier
                                 s.event = broken_args[0];
                                 s.qualifier = broken_args[1];
                                 s.var = broken_args[2];
                                 replacePredefinedVar(s.var);
-                            }else if (broken_args.size() == 2){
-                                if(which == "left"){
+                            }
+                            else if (broken_args.size() == 2)
+                            {
+                                if (which == "left")
+                                {
                                     // has to be qualifier
                                     s.event = name;
                                     s.qualifier = broken_args[0];
                                     s.var = broken_args[1];
                                     replacePredefinedVar(s.var);
-                                }else{
+                                }
+                                else
+                                {
                                     // could be both, primary qualifier variable value or event variable value
-                                    if(isEventCondition(broken_args[0], c.conditions, c.primary)){
+                                    if (isEventCondition(broken_args[0], c.conditions, c.primary))
+                                    {
                                         s.event = broken_args[0];
                                         s.qualifier = "";
                                         s.var = broken_args[1];
                                         replacePredefinedVar(s.var);
-                                    }else{
+                                    }
+                                    else
+                                    {
                                         s.event = c.primary;
                                         s.qualifier = broken_args[0];
                                         s.var = broken_args[1];
@@ -1028,9 +1110,12 @@ Php::Value interpreter(Php::Parameters &params)
                                     }
                                 }
                             }
-                        }else{
+                        }
+                        else
+                        {
                             s.abstract = false;
-                            if(which == "left"){
+                            if (which == "left")
+                            {
                                 // has to be a variable on the condition name / event selector
                                 s.eventselector = isPrimaryEventSelector(side);
                                 s.constant = false;
@@ -1038,7 +1123,9 @@ Php::Value interpreter(Php::Parameters &params)
                                 s.qualifier = cond.isEvent ? "" : name;
                                 s.var = side;
                                 replacePredefinedVar(s.var);
-                            }else if(which == "right"){
+                            }
+                            else if (which == "right")
+                            {
                                 // has to be constant
                                 s.numeric = isNumeric;
                                 s.constant = true;
@@ -1047,9 +1134,12 @@ Php::Value interpreter(Php::Parameters &params)
                                 s.var = side;
                             }
                         }
-                        if(which == "left"){
+                        if (which == "left")
+                        {
                             r.left = s;
-                        }else{
+                        }
+                        else
+                        {
                             r.right = s;
                         }
                     }
@@ -1062,6 +1152,7 @@ Php::Value interpreter(Php::Parameters &params)
         }
         code[i_event_name] = code_block;
     }
+
     return code2string(code);
 
     /*Php::Value collection;
