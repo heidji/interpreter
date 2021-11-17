@@ -122,11 +122,11 @@ struct cpp_t
     conditions_t conditions;
 
     string toString(int c = 0){
-        return k(c) + "conditions: {\n" + conditions.toString(c + 1) + "\n" + k(c+1) + "}" + k(c) + "\n";
+        return /*k(c) + "formula: " + formula + "\n" +*/ k(c) + "conditions: {\n" + conditions.toString(c + 1) + "\n" + k(c + 1) + "}" + k(c) + "\n";
     }
 };
 
-struct code_t
+struct instruction_t
 {
     string primary = "";
     map<string, string> conditions;
@@ -137,7 +137,7 @@ struct code_t
     string toString(int c = 0)
     {
         string s;
-        s = k(c) + "primary: " + primary + "\nformula: " + formula + "\nconditions: {\n";
+        s = k(c) + "primary: " + primary + "\n" + k(c) + "formula: " + formula + "\n" + k(c) + "conditions: {\n";
         for(auto&& [key, v] : conditions){
             s += k(c + 1) + key + ": " + v + "\n";
         }
@@ -146,6 +146,23 @@ struct code_t
         return s;
     }
 };
+
+string code2string(map<string, vector<instruction_t>> m, int c = 0)
+{
+    string s;
+    s = k(c) + "{\n";
+    for (auto &&[key, v] : m)
+    {
+        s += k(c + 1) + key + ": " + "[\n";
+        for (instruction_t i : v)
+        {
+            s += i.toString(c + 2) + ",\n";
+        }
+        s += "\n" + k(c+1) + "]\n";
+    }
+    s += "\n" + k(c) + "}\n";
+    return s;
+}
 
 bool is_numeric(string s)
 {
@@ -911,6 +928,13 @@ bool isPrimaryEventSelector(string arg){
     return false;
 }
 
+void replacePredefinedVar(string &var){
+    if (var == "tid")
+        var = "typeId";
+    if (var == "qid")
+        var = "qualifierId";
+}
+
 Php::Value interpreter(Php::Parameters &params)
 {
     /*struct event e;
@@ -926,13 +950,13 @@ Php::Value interpreter(Php::Parameters &params)
     auto events = params[1];
 
     // normalize code object
-    map<string, vector<code_t>> code;
+    map<string, vector<instruction_t>> code;
 
     for (auto &&[i_event_name, code_blocks] : code_php){
-        vector<code_t> code_block;
+        vector<instruction_t> code_block;
         for (auto &&[block, instruction] : code_blocks){
             // get
-            struct code_t c;
+            struct instruction_t c;
             if(instruction["primary"] != ""){
                 string primary_s = instruction["primary"];
                 c.primary = primary_s;
@@ -981,22 +1005,26 @@ Php::Value interpreter(Php::Parameters &params)
                                 s.event = broken_args[0];
                                 s.qualifier = broken_args[1];
                                 s.var = broken_args[2];
+                                replacePredefinedVar(s.var);
                             }else if (broken_args.size() == 2){
                                 if(which == "left"){
                                     // has to be qualifier
                                     s.event = name;
                                     s.qualifier = broken_args[0];
                                     s.var = broken_args[1];
+                                    replacePredefinedVar(s.var);
                                 }else{
                                     // could be both, primary qualifier variable value or event variable value
                                     if(isEventCondition(broken_args[0], c.conditions, c.primary)){
                                         s.event = broken_args[0];
                                         s.qualifier = "";
                                         s.var = broken_args[1];
+                                        replacePredefinedVar(s.var);
                                     }else{
                                         s.event = c.primary;
                                         s.qualifier = broken_args[0];
                                         s.var = broken_args[1];
+                                        replacePredefinedVar(s.var);
                                     }
                                 }
                             }
@@ -1009,6 +1037,7 @@ Php::Value interpreter(Php::Parameters &params)
                                 s.event = cond.isEvent ? name : "";
                                 s.qualifier = cond.isEvent ? "" : name;
                                 s.var = side;
+                                replacePredefinedVar(s.var);
                             }else if(which == "right"){
                                 // has to be constant
                                 s.numeric = isNumeric;
@@ -1029,12 +1058,11 @@ Php::Value interpreter(Php::Parameters &params)
                 cs.conditions[name] = cond;
             }
             c.cpp.conditions = cs;
-            return c.toString();
             code_block.push_back(c);
         }
         code[i_event_name] = code_block;
     }
-    return 0;
+    return code2string(code);
 
     /*Php::Value collection;
 
