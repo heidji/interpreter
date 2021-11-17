@@ -107,6 +107,10 @@ struct formula_connected_t
     string op = "";
     rule_side_t left;
     rule_side_t right;
+
+    string toString(int c = 0){
+        return k(c) + "op: " + op + "\n" + k(c) + "left: {\n" + left.toString(c + 1) + "\n" + k(c) + "}\n" + k(c) + "right: {\n" + left.toString(c + 1) + "\n" + k(c) + "}\n";
+    }
 };
 
 struct logic_gate_t
@@ -120,6 +124,22 @@ struct formula_t
     vector<vector<logic_gate_t>> logic;
     vector<rule_side_t> simple;
     vector<formula_connected_t> connected;
+
+    string toString(int c = 0){
+       string s = k(c) + "logic: TBD\n" + k(c) + "simple: [\n";
+        for (rule_side_t side : simple)
+        {
+            s += k(c + 1) + "{\n" + side.toString(c + 2) + "\n" + k(c + 1)+ "}\n";
+        }
+        s += k(c) + "]\n";
+        s += k(c) + "connected: [\n";
+        for (formula_connected_t side : connected)
+        {
+            s += k(c + 1) + "{\n" + side.toString(c + 2) + "\n" + k(c + 1) + "}\n";
+        }
+        s += k(c) + "]\n";
+        return s;
+    }
 };
 
 struct cpp_t
@@ -129,8 +149,15 @@ struct cpp_t
 
     string toString(int c = 0)
     {
-        return /*k(c) + "formula: " + formula + "\n" +*/ k(c) + "conditions: {\n" + conditions.toString(c + 1) + "\n" + k(c + 1) + "}" + k(c) + "\n";
+        return k(c) + "formula:\n " + formula.toString(c+1) + "\n" + k(c) + "conditions: {\n" + conditions.toString(c + 1) + "\n" + k(c + 1) + "}" + k(c) + "\n";
     }
+};
+
+struct q_t
+{
+    vector<map<string, event_t>> events;
+    vector<map<string, qualifier_t>> qualifier;
+    vector<map<string, string>> evals;
 };
 
 struct instruction_t
@@ -1164,6 +1191,127 @@ Php::Value interpreter(Php::Parameters &params)
                 cs.conditions[name] = cond;
             }
             c.cpp.conditions = cs;
+
+            // eval formula
+            // extract all elements
+            string formula_temp = " " + c.formula + " ";
+            while (formula_temp.find("(") != std::string::npos)
+            {
+                formula_temp.replace(formula_temp.find("("), 1, " ");
+            }
+            while (formula_temp.find(")") != std::string::npos)
+            {
+                formula_temp.replace(formula_temp.find(")"), 1, " ");
+            }
+            while (formula_temp.find(" and ") != std::string::npos)
+            {
+                formula_temp.replace(formula_temp.find(" and "), 5, " ");
+            }
+            while (formula_temp.find(" or ") != std::string::npos)
+            {
+                formula_temp.replace(formula_temp.find(" or "), 4, " ");
+            }
+            while (formula_temp.find(" not ") != std::string::npos)
+            {
+                formula_temp.replace(formula_temp.find(" not "), 5, " ");
+            }
+            clean(formula_temp, false);
+
+            vector<string> formula_args = trim_explode(" ", formula_temp);
+            vector<string> vec = formula_args;
+            sort(vec.begin(), vec.end());
+            vec.erase(unique(vec.begin(), vec.end()), vec.end());
+            formula_args = vec;
+
+            for (string arg : formula_args){
+                string op = operands(arg);
+                if(op != ""){
+                    // connected
+                    formula_connected_t fct;
+                    fct.op = op;
+                    vector<string> sides = trim_explode(op, arg);
+                    for (string &side : sides)
+                    {
+                        rule_side_t s;
+                        int i = &side - &sides[0];
+                        string which;
+                        if (i == 0)
+                            which = "left";
+                        else
+                            which = "right";
+
+                        bool isNumeric = is_numeric(side);
+                        if (!isNumeric && side.find_first_of('.') != string::npos)
+                        {
+                            // abstract
+                            s.abstract = true;
+                            s.numeric = false;
+                            s.constant = false;
+                            vector<string> broken_args = trim_explode(".", side);
+                            if (broken_args.size() == 3)
+                            {
+                                // simplest identifier
+                                s.event = broken_args[0];
+                                s.qualifier = broken_args[1];
+                                s.var = broken_args[2];
+                                replacePredefinedVar(s.var);
+                            }
+                            else if (broken_args.size() == 2)
+                            {
+                                if (which == "left")
+                                {
+                                    // has to be qualifier
+                                    s.event = c.primary;
+                                    s.qualifier = broken_args[0];
+                                    s.var = broken_args[1];
+                                    replacePredefinedVar(s.var);
+                                }
+                                else
+                                {
+                                    // could be both, primary qualifier variable value or event variable value
+                                    if (isEventCondition(broken_args[0], c.conditions, c.primary))
+                                    {
+                                        s.event = broken_args[0];
+                                        s.qualifier = "";
+                                        s.var = broken_args[1];
+                                        replacePredefinedVar(s.var);
+                                    }
+                                    else
+                                    {
+                                        s.event = c.primary;
+                                        s.qualifier = broken_args[0];
+                                        s.var = broken_args[1];
+                                        replacePredefinedVar(s.var);
+                                    }
+                                }
+                            }
+                        }
+                        if (which == "left")
+                            fct.left = s;
+                        else
+                            fct.right = s;
+                    }
+                    c.cpp.formula.connected.push_back(fct);
+                }else{
+                    // simple
+                    rule_side_t s;
+                    if(arg.find(".") != string::npos){
+                        vector<string> args = trim_explode(".", arg);
+                        s.event = args[0];
+                        s.qualifier = args[1];
+                    }else{
+                        if(isEventCondition(arg, c.conditions, c.primary)){
+                            s.event = arg;
+                        }else{
+                            s.event = c.primary;
+                            s.qualifier = arg;
+                        }
+                    }
+                    c.cpp.formula.simple.push_back(s);
+                }
+            }
+
+
             code_block.push_back(c);
         }
         code[i_event_name] = code_block;
