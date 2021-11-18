@@ -214,7 +214,7 @@ struct q_t
     map<string, event_t> events;
     map<string, qualifier_t> qualifier;
     map<string, bool> evals;
-    vector<string> test;
+    map<string, string> test;
 
     string toString(int c = 0){
         string s = k(c) + "events: {\n";
@@ -233,9 +233,9 @@ struct q_t
             s += k(c + 1) + key + ": "+ bool2str(v) +"\n";
         }
         s += k(c) + "}\n" + k(c) + "test: [\n";
-        for (string v : test)
+        for (auto &&[key, v] : test)
         {
-            s += k(c + 1) + v + "\n";
+            s += k(c + 1) + key + ": " + v + "\n";
         }
         s += k(c) + "]\n";
         return s;
@@ -719,9 +719,8 @@ bool testEventQualifierConditions(string &name, string &qname, instruction_t &in
     vector<qualifier_t> qualifiers = q.events[name].qualifier;
     condition_t condition = instruction.cpp.conditions[qname];
 
-    for (qualifier_t &qualifier : qualifiers)
+    for (qualifier_t &qualifier : qualifiers){
         for(rule_t &rule : condition.rules){
-        {
             string left = qualifier.params[rule.left.var];
             string right;
             if(rule.right.constant){
@@ -736,13 +735,13 @@ bool testEventQualifierConditions(string &name, string &qname, instruction_t &in
                 }
             }
             if(!eval_with_op(left, right, rule.op)){
-                q.evals[name + "." + qname] = false;
-                break;
+                goto cnt;
             }
         }
         q.qualifier[name + "." + qname] = qualifier;
         q.evals[name + "." + qname] = true;
         return true;
+        cnt:;
     }
     q.evals[name + "." + qname] = false;
     return false;
