@@ -8,6 +8,7 @@
 #include <cmath>
 #include <sstream>
 #include <fstream>
+#include <mutex>
 
 #include <phpcpp.h>
 
@@ -15,6 +16,8 @@ using namespace std;
 using namespace std::chrono;
 
 vector<vector<string>> debug;
+
+mutex m;
 
 string bool2str(bool x)
 {
@@ -348,6 +351,27 @@ string result2string(vector<result_t> &m, int c = 0)
     }
     s += "\n" + k(c) + "]\n";
     return s;
+}
+
+Php::Value result2phpvalue(vector<result_t> &x, int c = 0)
+{
+    Php::Value result;
+    for(result_t &m : x){
+        Php::Value r;
+        r["event_type"] = m.event_type;
+        r["event_id"] = m.event_id;
+        r["id"] = m.id;
+        r["time"] = m.time;
+        r["noten_context"] = m.noten_context;
+        Php::Value values;
+        for (auto &&[key, val] : m.values)
+        {
+            values[key] = val;
+        }
+        r["values"] = values;
+        result[result.size()] = r;
+    }
+    return result;
 }
 
 bool is_numeric(string s)
@@ -854,7 +878,7 @@ Php::Value interpreter(Php::Parameters &params)
     auto code_php = params[0];
     auto events_php = params[1];
 
-    Php::Value collection;
+    /*Php::Value*/ vector<result_t> collection;
 
     // normalize code object
     map<string, vector<instruction_t>> code;
@@ -1255,9 +1279,11 @@ Php::Value interpreter(Php::Parameters &params)
     //return events2string(events);
 
     // type conversions complete / begin query
-    int step = -1;
+    // multithread loop
+    #pragma omp parallel for
     for(event_t &event : events){
-        step++;
+        size_t t_step = &event - &events[0];
+        int step = t_step;
         for (auto &&[i_event_name, code_blocks] : code)
         {
             for (instruction_t &instruction : code_blocks)
@@ -1408,7 +1434,7 @@ Php::Value interpreter(Php::Parameters &params)
                 // moment of truth
 
                 if(eval(formula)){
-                    Php::Value temp;
+                    /*Php::Value temp;
                     temp["event_type"] = i_event_name;
                     temp["event_id"] = q.events[instruction.primary].params["eventId"];
                     temp["id"] = q.events[instruction.primary].params["id"];
@@ -1426,8 +1452,8 @@ Php::Value interpreter(Php::Parameters &params)
                             }
                         }
                     }
-                    collection[collection.size()] = temp;
-                    /*result_t temp;
+                    collection[collection.size()] = temp;*/
+                    result_t temp;
                     temp.event_type = i_event_name;
                     temp.event_id = q.events[instruction.primary].params["eventId"];
                     temp.id = q.events[instruction.primary].params["id"];
@@ -1444,13 +1470,15 @@ Php::Value interpreter(Php::Parameters &params)
                             }
                         }
                     }
-                    collection.push_back(temp);*/
+                    m.lock();
+                    collection.push_back(temp);
+                    m.unlock();
                     break;
                 }
             }
         }
     }
-    return collection;
+    return result2phpvalue(collection);
 
  }
 
