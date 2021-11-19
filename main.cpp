@@ -648,8 +648,8 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
         throw std::invalid_argument("circular reference");
     it.push_back(name);
 
-    event_t event = events[primary_index];
-    condition_t condition = instruction.cpp.conditions[name];
+    event_t &event = events[primary_index];
+    condition_t &condition = instruction.cpp.conditions[name];
 
     string within_type = condition.withinType, selector = condition.iterator;
     int step = primary_index;
@@ -738,8 +738,103 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
         }
 
         // check if skip event
-        // TODO SKIPS
-        // TODO SKIPS
+        int x = 0;
+        bool xdo;
+        string skipstop = "";
+        for (string &skip : condition.skips)
+        {
+            auto &skipset = instruction.skips[skip];
+            for (string t_skipstop : {"stop", "skip", "count"})
+            {
+                skipstop = t_skipstop;
+                for (string team : {"team", "teamvs"})
+                {
+                    map <string, string> context;
+                    if(!skipset.count(skipstop) || !skipset[skipstop].count(team))
+                        continue;
+                    if(skipset[skipstop][team].count("is"))
+                        context["is"] = "is";
+                    else if(skipset[skipstop][team].count("is_not"))
+                        context["is"] = "is_not";
+                    else
+                        continue;
+                    context["team"] = team;
+                    if (context["team"] == "team" && q.eq[instruction.primary].event.params["contestantId"] == events[i].params["contestantId"] || context["team"] == "teamvs" && q.eq[instruction.primary].event.params["contestantId"] != events[i].params["contestantId"])
+                    {
+                        if (context["is"] == "is")
+                            xdo = false;
+                        else
+                            xdo = true;
+                        int x = -1;
+                        for (auto &ruleset : skipset[skipstop][context["team"]][context["is"]])
+                        {
+                            x++;
+                            for (auto&& [var, items] : ruleset)
+                            {
+                                for (auto &value : items)
+                                {
+                                    if (var != "qualifierId")
+                                    {
+                                        if (events[i].params[var] == value)
+                                        {
+                                            goto cnt_rules;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        for (auto qualifier : events[i].qualifier)
+                                        {
+                                            if (qualifier.params["qualifierId"] == value)
+                                            {
+                                                goto cnt_rules;
+                                            }
+                                        }
+                                    }
+                                }
+                                // no match
+                                if (x == skipset[skipstop][context["team"]][context["is"]].size()-1)
+                                    goto cnt_skip;
+                                else
+                                    goto cnt_ruleset;
+                                cnt_rules:;
+                            }
+                            if (context["is"] == "is")
+                            {
+                                // found match -> skip
+                                xdo = true;
+                                goto break_skip;
+                            }
+                            else
+                            {
+                                // found match -> skip
+                                xdo = false;
+                                goto cnt_team;
+                            }
+                            cnt_ruleset:;
+                        }
+                    }
+                    cnt_team:;
+                }
+            }
+            cnt_skip:;
+        }
+        break_skip:;
+        if(xdo){
+            if(skipstop == "stop"){
+                q.evals[name] = false;
+                return false;
+            }else if(skipstop == "skip") {
+                end += direction;
+                if (end > events.size() - 1)
+                    end = events.size() - 1;
+                else if (end < 0)
+                    end = 0;
+                continue;
+            }else if(skipstop == "count"){
+                s++;
+                continue;
+            }
+        }
 
         if(testConditions(name, instruction, events, i, primary_index, q, it))
             s++;
@@ -747,6 +842,7 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
         {
             return true;
         }
+        cnt:;
     }
 
     q.evals[name] = false;
@@ -801,12 +897,18 @@ bool testConditions(string name, instruction_t &instruction, vector<event_t> &ev
                     q.evals[name] = false;
                     q.eq.erase(name);
                     return false;
+                }else{
+                    continue;
                 }
             }else{
                 if (!rule.isNot){
                     q.evals[name] = false;
                     q.eq.erase(name);
                     return false;
+                }
+                else
+                {
+                    continue;
                 }
             }
             left = q.eq[rule.left.event].qualifier[rule.left.qualifier].params[rule.left.var];
@@ -1286,7 +1388,7 @@ Php::Value interpreter(Php::Parameters &params)
 
     // type conversions complete / begin query
     // multithread loop
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for(event_t &event : events){
         size_t t_step = &event - &events[0];
         int step = t_step;
@@ -1303,6 +1405,10 @@ Php::Value interpreter(Php::Parameters &params)
                     if(name == instruction.primary || !condition.isEvent)
                         continue;
                     findEvent(name, instruction, step, events, q, it);
+                    if (events[step].params["id"] == "2227838703")
+                    {
+                        return q.toString();
+                    }
                 }
                 // simple
                 for(rule_side_t &side : instruction.cpp.formula.simple){
