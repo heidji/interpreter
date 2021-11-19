@@ -168,12 +168,18 @@ struct logic_gate_t
 
 struct formula_t
 {
+    map<string, string> expanded;
     vector<vector<logic_gate_t>> logic;
     vector<rule_side_t> simple;
     vector<formula_connected_t> connected;
 
     string toString(int c = 0){
-       string s = k(c) + "logic: TBD\n" + k(c) + "simple: [\n";
+        string s = k(c) + "expanded: [\n";
+        for (auto &&[key, v] : expanded)
+        {
+            s += k(c + 1) + key + ": " + v + "\n";
+        }
+        s += k(c) + "]\n" + k(c) + "logic: TBD\n" + k(c) + "simple: [\n";
         for (rule_side_t &side : simple)
         {
             s += k(c + 1) + "{\n" + side.toString(c + 2) + "\n" + k(c + 1)+ "}\n";
@@ -212,23 +218,34 @@ struct cpp_t
     }
 };
 
-struct q_t
+struct e_q_t
 {
-    map<string, event_t> events;
+    event_t event;
     map<string, qualifier_t> qualifier;
-    map<string, bool> evals;
-    map<string, string> test;
 
     string toString(int c = 0){
-        string s = k(c) + "events: {\n";
-        for (auto &&[key, v] : events)
-        {
-            s += k(c + 1) + key + ": {\n" + v.toString(c+2) + "\n" + k(c+1) + "}\n";
-        }
-        s += k(c) + "}\n" + k(c) + "qualifier: {\n";
+        string s = k(c) + "event: {\n"+ event.toString(c+1)+"\n"+k(c)+"}\n";
+        s += k(c) + "qualifier: [\n";
         for (auto &&[key, v] : qualifier)
         {
             s += k(c + 1) + key + ": {\n" + v.toString(c + 2) + "\n" + k(c + 1) + "}\n";
+        }
+        s += k(c) + "]\n";
+        return s;
+    }
+};
+
+struct q_t
+{
+    map<string, e_q_t> eq;
+    map<string, bool> evals; // only contains evaluated events and expressions. not e.q because it would kill the loop
+    map<string, string> test;
+
+    string toString(int c = 0){
+        string s = k(c) + "eq: {\n";
+        for (auto &&[key, v] : eq)
+        {
+            s += k(c + 1) + key + ": {\n" + v.toString(c+2) + "\n" + k(c+1) + "}\n";
         }
         s += k(c) + "}\n" + k(c) + "evals: {\n";
         for (auto &&[key, v] : evals)
@@ -654,7 +671,6 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
         {
             end = start;
             if (!(end > events.size()) || abs(event.time - events[end].time) > within){
-                q.evals[name] = false;
                 return false;
             }
             else
@@ -691,7 +707,6 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
 
     if (start == step || direction == 1 && start > end || direction == -1 && start < end)
     {
-        q.evals[name] = false;
         return false;
     }
     int around_alternator = 1;
@@ -728,7 +743,7 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
 
         if(testConditions(name, instruction, events, i, primary_index, q, it))
             s++;
-        if (s >= times && q.evals[name] != false)
+        if (s >= times && q.evals.count(name))
         {
             return true;
         }
@@ -740,8 +755,8 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
 
 bool testEventQualifierConditions(string &name, string &qname, instruction_t &instruction, int primary_index, vector<event_t> &events, q_t &q, vector<string> &it)
 {
-    vector<qualifier_t> qualifiers = q.events[name].qualifier;
-    condition_t condition = instruction.cpp.conditions[qname];
+    vector<qualifier_t> &qualifiers = q.eq[name].event.qualifier;
+    condition_t &condition = instruction.cpp.conditions[qname];
 
     for (qualifier_t &qualifier : qualifiers){
         for(rule_t &rule : condition.rules){
@@ -750,24 +765,20 @@ bool testEventQualifierConditions(string &name, string &qname, instruction_t &in
             if(rule.right.constant){
                 right = rule.right.var;
             }else{
-                if(!q.events.count(rule.right.event)){
-                    if (!findEvent(name, instruction, primary_index, events, q, it))
-                    {
-                        q.evals[name + "." + qname] = false;
-                        return false;
-                    }
+                if (!q.evals[rule.right.event] || !q.eq[rule.right.event].qualifier.count(rule.right.qualifier))
+                {
+                    return false;
                 }
+                right = q.eq[rule.right.event].qualifier[rule.right.qualifier].params[rule.right.var];
             }
             if(!eval_with_op(left, right, rule.op)){
                 goto cnt;
             }
         }
-        q.qualifier[name + "." + qname] = qualifier;
-        q.evals[name + "." + qname] = true;
+        q.eq[name].qualifier[qname] = qualifier;
         return true;
         cnt:;
     }
-    q.evals[name + "." + qname] = false;
     return false;
 }
 
@@ -775,67 +786,61 @@ bool testConditions(string name, instruction_t &instruction, vector<event_t> &ev
 {
 
     // put the event in q so we can use it onwards
-    q.events[name] = events[index];
+    q.eq[name].event = events[index];
 
     condition_t condition = instruction.cpp.conditions[name];
     for(rule_t &rule : condition.rules){
         string left, right;
         // left
         if (rule.left.qualifier == ""){
-            left = q.events[rule.left.event].params[rule.left.var];
+            left = q.eq[rule.left.event].event.params[rule.left.var];
         }else{
-            if (!q.qualifier.count(rule.left.event+"."+rule.left.qualifier)){
+            if (!q.eq[rule.left.event].qualifier.count(rule.left.qualifier)){
                 bool test = testEventQualifierConditions(rule.left.event, rule.left.qualifier, instruction, primary_index, events, q, it);
                 if(test && rule.isNot || !test && !rule.isNot){
-                    q.events.erase(name);
                     q.evals[name] = false;
+                    q.eq.erase(name);
                     return false;
                 }
             }else{
                 if (!rule.isNot){
-                    q.events.erase(name);
                     q.evals[name] = false;
+                    q.eq.erase(name);
                     return false;
                 }
             }
-            left = q.qualifier[rule.left.event+"."+rule.left.qualifier].params[rule.left.var];
+            left = q.eq[rule.left.event].qualifier[rule.left.qualifier].params[rule.left.var];
         }
 
         // right
         if(rule.right.abstract){
             string query = "";
-            if(rule.right.event != ""){
-                if(!q.events.count(rule.right.event)){
-                    bool test = findEvent(rule.right.event, instruction, primary_index, events, q, it);
-                    if (!test)
-                    {
-                        q.events.erase(name);
-                        q.evals[name] = false;
-                        return false;
-                    }
-                }
+            if(rule.right.event != "" && !q.evals[rule.right.event]){
+                q.evals[name] = false;
+                q.eq.erase(name);
+                return false;
             }
             if(rule.right.qualifier != ""){
-                if(!q.qualifier.count(rule.right.event+"."+rule.right.qualifier)){
+                if(!q.eq[rule.right.event].qualifier.count(rule.right.qualifier)){
                     bool test = testEventQualifierConditions(rule.right.event, rule.right.qualifier, instruction, primary_index, events, q, it);
                     if (!test)
                     {
-                        q.events.erase(name);
                         q.evals[name] = false;
+                        q.eq.erase(name);
                         return false;
                     }
                 }
-                right = q.qualifier[rule.right.event + "." + rule.right.qualifier].params[rule.right.var];
+                right = q.eq[rule.right.event].qualifier[rule.right.qualifier].params[rule.right.var];
             }else{
-                right = q.events[rule.right.event].params[rule.right.var];
+                right = q.eq[rule.right.event].event.params[rule.right.var];
             }
         }else{
             right = rule.right.var;
         }
         if (!eval_with_op(left, right, rule.op))
         {
-            q.events.erase(name);
             q.evals[name] = false;
+            q.eq.erase(name);
             return false;
         }
     }
@@ -1149,6 +1154,7 @@ Php::Value interpreter(Php::Parameters &params)
                     fct.op = op;
                     fct.query = arg;
                     vector<string> sides = trim_explode(op, arg);
+                    vector<string> exp;
                     for (string &side : sides)
                     {
                         rule_side_t s;
@@ -1292,15 +1298,26 @@ Php::Value interpreter(Php::Parameters &params)
                 q_t q;
                 if (!testConditions(instruction.primary, instruction, events, step, step, q, it))
                     continue;
+                // find all events to prevent senseless loop
+                for(auto&& [name, condition] : instruction.cpp.conditions){
+                    if(name == instruction.primary || !condition.isEvent)
+                        continue;
+                    findEvent(name, instruction, step, events, q, it);
+                }
                 // simple
                 for(rule_side_t &side : instruction.cpp.formula.simple){
-                    if (!q.evals.count(side.event))
+                    if (side.qualifier != "" && !q.eq[side.event].qualifier.count(side.qualifier))
                     {
-                        findEvent(side.event, instruction, step, events, q, it);
-                    }
-                    if (side.qualifier != "" && !q.evals.count(side.event + "." + side.qualifier))
-                    {
-                        testEventQualifierConditions(side.event, side.qualifier, instruction, step, events, q, it);
+                        if(testEventQualifierConditions(side.event, side.qualifier, instruction, step, events, q, it)){
+                            q.evals[side.event + "." + side.qualifier] = true;
+                            if (instruction.primary == side.event)
+                                q.evals[side.qualifier] = true;
+                        }else{
+                            q.evals[side.event + "." + side.qualifier] = false;
+                            if (instruction.primary == side.event)
+                                q.evals[side.qualifier] = false;
+                        }
+
                     }
                 }
                 // connected
@@ -1318,28 +1335,28 @@ Php::Value interpreter(Php::Parameters &params)
                             else
                                 right = side.var;
                         }else{
-                            if (!q.evals.count(side.event))
+                            if (!q.eq.count(side.event))
                             {
-                                findEvent(side.event, instruction, step, events, q, it);
-                            }
-                            if (side.qualifier != "" && !q.evals.count(side.event + "." + side.qualifier))
-                            {
-                                testEventQualifierConditions(side.event, side.qualifier, instruction, step, events, q, it);
-                            }
-                            if(!q.evals[side.event] || side.qualifier != "" && !q.evals[side.event+"."+side.qualifier]){
                                 q.evals[rule.query] = false;
                                 break;
                             }
+                            if (side.qualifier != "" && !q.eq[side.event].qualifier.count(side.qualifier))
+                            {
+                                if(!testEventQualifierConditions(side.event, side.qualifier, instruction, step, events, q, it)){
+                                    q.evals[rule.query] = false;
+                                    break;
+                                }
+                            }
                             if(side.qualifier != ""){
                                 if(i == 0)
-                                    left = q.qualifier[side.event + "." + side.qualifier].params[side.var];
+                                    left = q.eq[side.event].qualifier[side.qualifier].params[side.var];
                                 else
-                                    right = q.qualifier[side.event + "." + side.qualifier].params[side.var];
+                                    right = q.eq[side.event].qualifier[side.qualifier].params[side.var];
                             }else{
                                 if (i == 0)
-                                    left = q.events[side.event].params[side.var];
+                                    left = q.eq[side.event].event.params[side.var];
                                 else
-                                    right = q.events[side.event].params[side.var];
+                                    right = q.eq[side.event].event.params[side.var];
                             }
                         }
                     }
@@ -1455,18 +1472,18 @@ Php::Value interpreter(Php::Parameters &params)
                     collection[collection.size()] = temp;*/
                     result_t temp;
                     temp.event_type = i_event_name;
-                    temp.event_id = q.events[instruction.primary].params["eventId"];
-                    temp.id = q.events[instruction.primary].params["id"];
-                    temp.time = q.events[instruction.primary].params["timeStamp"];
+                    temp.event_id = q.eq[instruction.primary].event.params["eventId"];
+                    temp.id = q.eq[instruction.primary].event.params["id"];
+                    temp.time = q.eq[instruction.primary].event.params["timeStamp"];
                     temp.noten_context = instruction.noten_context;
                     for(auto&& [key, val] : instruction.cpp.values){
                         if(val.constant){
                             temp.values[key] = val.var;
                         }else{
                             if(val.qualifier != ""){
-                                temp.values[key] = q.qualifier[val.event+"."+val.qualifier].params[val.var];
+                                temp.values[key] = q.eq[val.event].qualifier[val.qualifier].params[val.var];
                             }else{
-                                temp.values[key] = q.events[val.event].params[val.var];
+                                temp.values[key] = q.eq[val.event].event.params[val.var];
                             }
                         }
                     }
