@@ -1464,17 +1464,18 @@ Php::Value interpreter(Php::Parameters &params)
                                 break;
                             }
                         }
+                        string temp;
                         if(side.qualifier != ""){
-                            if(i == 0)
-                                left = q.eq[side.event].qualifier[side.qualifier].params[side.var];
-                            else
-                                right = q.eq[side.event].qualifier[side.qualifier].params[side.var];
+                            temp = q.eq[side.event].qualifier[side.qualifier].params[side.var];
                         }else{
-                            if (i == 0)
-                                left = q.eq[side.event].event.params[side.var];
-                            else
-                                right = q.eq[side.event].event.params[side.var];
+                            temp = q.eq[side.event].event.params[side.var];
                         }
+                        if(side.var == "timeStamp")
+                            temp = to_string(strtotime(temp));
+                        if (i == 0)
+                            left = temp;
+                        else
+                            right = temp;
                     }
                 }
                 if(eval_with_op(left, right, rule.op)){
@@ -1611,6 +1612,13 @@ Php::Value interpreter(Php::Parameters &params)
             }
         }
     }
+    std::sort(collection.begin(),
+              collection.end(),
+              [](const result_t &lhs, const result_t &rhs)
+              {
+                  return lhs.time < rhs.time;
+              });
+
     return result2phpvalue(collection);
 
  }
