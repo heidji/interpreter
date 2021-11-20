@@ -1405,7 +1405,7 @@ Php::Value interpreter(Php::Parameters &params)
         v_i_event_name.push_back(i_event_name);
     }
 
-    //#pragma omp parallel for
+    #pragma omp parallel for
     for(int iter = 0; iter < loop; iter++){
         int step = floor(iter/c_s);
         string i_event_name = v_i_event_name[iter%c_s];
