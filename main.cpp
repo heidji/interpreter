@@ -737,18 +737,9 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
             continue;
         }
 
-        if(!testConditions(name, instruction, events, i, primary_index, q, it)){
-            end += direction;
-            if (end < 0)
-                end = 0;
-            else if (end > events.size() - 1)
-                end = events.size() - 1;
-            continue;
-        }
-
         // check if skip event
         int x = 0;
-        bool xdo;
+        bool xdo = false;
         string skipstop = "";
         for (string &skip : condition.skips)
         {
@@ -844,6 +835,10 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
             }
         }
 
+        if(!testConditions(name, instruction, events, i, primary_index, q, it)){
+            continue;
+        }
+
         s++;
         if (s >= times && q.evals.count(name))
         {
@@ -895,7 +890,10 @@ bool testConditions(string name, instruction_t &instruction, vector<event_t> &ev
         string left, right;
         // left
         if (rule.left.qualifier == ""){
-            left = q.eq[rule.left.event].event.params[rule.left.var];
+            string temp = q.eq[rule.left.event].event.params[rule.left.var];
+            if (rule.left.var == "timeStamp")
+                temp = to_string(strtotime(temp));
+            left = temp;
         }else{
             if (!q.eq[rule.left.event].qualifier.count(rule.left.qualifier)){
                 bool test = testEventQualifierConditions(rule.left.event, rule.left.qualifier, instruction, primary_index, events, q, it);
@@ -940,7 +938,10 @@ bool testConditions(string name, instruction_t &instruction, vector<event_t> &ev
                 }
                 right = q.eq[rule.right.event].qualifier[rule.right.qualifier].params[rule.right.var];
             }else{
-                right = q.eq[rule.right.event].event.params[rule.right.var];
+                string temp = q.eq[rule.right.event].event.params[rule.right.var];
+                if (rule.right.var == "timeStamp")
+                    temp = to_string(strtotime(temp));
+                right = temp;
             }
         }else{
             right = rule.right.var;
@@ -1404,7 +1405,7 @@ Php::Value interpreter(Php::Parameters &params)
         v_i_event_name.push_back(i_event_name);
     }
 
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for(int iter = 0; iter < loop; iter++){
         int step = floor(iter/c_s);
         string i_event_name = v_i_event_name[iter%c_s];
@@ -1569,25 +1570,6 @@ Php::Value interpreter(Php::Parameters &params)
             // moment of truth
 
             if(eval(formula)){
-                /*Php::Value temp;
-                temp["event_type"] = i_event_name;
-                temp["event_id"] = q.events[instruction.primary].params["eventId"];
-                temp["id"] = q.events[instruction.primary].params["id"];
-                temp["time"] = q.events[instruction.primary].params["timeStamp"];
-                temp["noten_context"] = instruction.noten_context;
-                temp["values"] = {};
-                for(auto&& [key, val] : instruction.cpp.values){
-                    if(val.constant){
-                        temp["values"][key] = val.var;
-                    }else{
-                        if(val.qualifier != ""){
-                            temp["values"][key] = q.qualifier[val.event+"."+val.qualifier].params[val.var];
-                        }else{
-                            temp["values"][key] = q.events[val.event].params[val.var];
-                        }
-                    }
-                }
-                collection[collection.size()] = temp;*/
                 result_t temp;
                 temp.event_type = i_event_name;
                 temp.event_id = q.eq[instruction.primary].event.params["eventId"];
