@@ -737,6 +737,15 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
             continue;
         }
 
+        if(!testConditions(name, instruction, events, i, primary_index, q, it)){
+            end += direction;
+            if (end < 0)
+                end = 0;
+            else if (end > events.size() - 1)
+                end = events.size() - 1;
+            continue;
+        }
+
         // check if skip event
         int x = 0;
         bool xdo;
@@ -835,8 +844,7 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
             }
         }
 
-        if(testConditions(name, instruction, events, i, primary_index, q, it))
-            s++;
+        s++;
         if (s >= times && q.evals.count(name))
         {
             return true;
