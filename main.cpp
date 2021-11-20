@@ -641,16 +641,27 @@ bool eval_with_op(string left, string right, string op)
     // removed is_numeric because it's slow. assume comparison based on operator
     if (op == "<" || op == ">" || op == ">=" || op == "<=")
     {
-        l = ::atof(left.c_str());
-        r = ::atof(right.c_str());
-        if (op == ">")
-            return l > r;
-        else if (op == "<")
-            return l < r;
-        else if (op == ">=")
-            return l >= r;
-        else if (op == "<=")
-            return l <= r;
+        if(is_numeric(left) && is_numeric(right)){
+            l = ::atof(left.c_str());
+            r = ::atof(right.c_str());
+            if (op == ">")
+                return l > r;
+            else if (op == "<")
+                return l < r;
+            else if (op == ">=")
+                return l >= r;
+            else if (op == "<=")
+                return l <= r;
+        }else{
+            if (op == ">")
+                return left > right;
+            else if (op == "<")
+                return left < right;
+            else if (op == ">=")
+                return left >= right;
+            else if (op == "<=")
+                return left <= right;
+        }
     }
     else
     {
@@ -942,8 +953,6 @@ bool testConditions(string name, instruction_t &instruction, vector<event_t> &ev
         // left
         if (rule.left.qualifier == ""){
             string temp = q.eq[rule.left.event].event.params[rule.left.var];
-            if (rule.left.var == "timeStamp")
-                temp = to_string(strtotime(temp));
             left = temp;
         }else{
             if (!q.eq[rule.left.event].qualifier.count(rule.left.qualifier)){
@@ -990,8 +999,6 @@ bool testConditions(string name, instruction_t &instruction, vector<event_t> &ev
                 right = q.eq[rule.right.event].qualifier[rule.right.qualifier].params[rule.right.var];
             }else{
                 string temp = q.eq[rule.right.event].event.params[rule.right.var];
-                if (rule.right.var == "timeStamp")
-                    temp = to_string(strtotime(temp));
                 right = temp;
             }
         }else{
@@ -1522,8 +1529,6 @@ Php::Value interpreter(Php::Parameters &params)
                         }else{
                             temp = q.eq[side.event].event.params[side.var];
                         }
-                        if(side.var == "timeStamp")
-                            temp = to_string(strtotime(temp));
                         if (i == 0)
                             left = temp;
                         else
