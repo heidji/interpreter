@@ -50,6 +50,22 @@ struct result_t
         s += k(c) + "}\n";
         return s;
     }
+
+    string toJson(){
+        string s = "{\"event_type\":\"" + event_type + "\",\"event_id\":\"" + event_id +
+                   "\",\"id\":\"" + id + "\",\"time\":\"" + time + "\",\"noten_context\":\"" + noten_context +
+                   "\",\"values\": {";
+        int x = 0;
+        for (auto &&[key, v] : values)
+        {
+            s += "\"" + key + "\":\"" + v + "\"";
+            x++;
+            if(x < values.size())
+                s += ",";
+        }
+        s += "}}";
+        return s;
+    }
 };
 
 struct qualifier_t
@@ -370,7 +386,42 @@ string result2string(vector<result_t> &m, int c = 0)
     return s;
 }
 
-Php::Value result2phpvalue(vector<result_t> &x, int c = 0)
+string result2json(vector<result_t> &m, int c = 0)
+{
+    string s;
+    s += k(c) + "[";
+    int x = 0;
+    for (result_t &i : m)
+    {
+        s += i.toJson();
+        x++;
+        if(x < m.size())
+            s += ",";
+    }
+    s += "]";
+    return s;
+}
+
+Php::Value result2phpvalue(result_t &x, int c = 0)
+{
+
+    Php::Value r;
+    r["event_type"] = x.event_type;
+    r["event_id"] = x.event_id;
+    r["id"] = x.id;
+    r["time"] = x.time;
+    r["noten_context"] = x.noten_context;
+    Php::Value values;
+    for (auto &&[key, val] : x.values)
+    {
+        values[key] = val;
+    }
+    r["values"] = values;
+
+    return r;
+}
+
+Php::Value results2phpvalue(vector<result_t> &x, int c = 0)
 {
     Php::Value result;
     for(result_t &m : x){
@@ -1601,7 +1652,8 @@ Php::Value interpreter(Php::Parameters &params)
                   return lhs.time < rhs.time;
               });
 
-    return result2phpvalue(collection);
+    return result2json(collection);
+    //return result2phpvalue(collection);
 
  }
 
