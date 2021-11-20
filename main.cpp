@@ -730,10 +730,10 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
         if (events[i].params["typeId"] == "43")
         {
             end += direction;
-            if (end > events.size() - 1)
-                end = events.size() - 1;
-            else if (end < 0)
+            if (end < 0)
                 end = 0;
+            else if (end > events.size() - 1)
+                end = events.size() - 1;
             continue;
         }
 
@@ -793,7 +793,7 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
                                 }
                                 // no match
                                 if (x == skipset[skipstop][context["team"]][context["is"]].size()-1)
-                                    goto cnt_skip;
+                                    goto break_skip;
                                 else
                                     goto cnt_ruleset;
                                 cnt_rules:;
@@ -816,7 +816,6 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
                     cnt_team:;
                 }
             }
-            cnt_skip:;
         }
         break_skip:;
         if(xdo){
@@ -825,10 +824,10 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
                 return false;
             }else if(skipstop == "skip") {
                 end += direction;
-                if (end > events.size() - 1)
-                    end = events.size() - 1;
-                else if (end < 0)
+                if (end < 0)
                     end = 0;
+                else if (end > events.size() - 1)
+                    end = events.size() - 1;
                 continue;
             }else if(skipstop == "count"){
                 s++;
@@ -842,7 +841,6 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
         {
             return true;
         }
-        cnt:;
     }
 
     q.evals[name] = false;
@@ -1405,10 +1403,6 @@ Php::Value interpreter(Php::Parameters &params)
                     if(name == instruction.primary || !condition.isEvent)
                         continue;
                     findEvent(name, instruction, step, events, q, it);
-                    if (events[step].params["id"] == "2227838703")
-                    {
-                        return q.toString();
-                    }
                 }
                 // simple
                 for(rule_side_t &side : instruction.cpp.formula.simple){
