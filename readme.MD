@@ -12,3 +12,8 @@ make -B
 The generated `interpreter.so` file can included as follows:
 Add an `interpreter`.ini file in the `/etc/php/7.3/mods-available` folder with the following content
 `extension=/full/path/to/so/example.so`
+
+## Optimization ideas:
+- create another event array with their typeIds as the key to each subset. this should optimize the primary condition loop because it would be clear which typeId they're looking for, and would reduce the times significantly
+- create evals on `eq[name].event.evals` level for their qualifiers. this prevents the logic eval from attempting to re-match the qualifier which has been already rejected at a prior stage, if it can check a flag for that.
+- unfold the formula

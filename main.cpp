@@ -947,7 +947,7 @@ bool testConditions(string name, instruction_t &instruction, vector<event_t> &ev
     // put the event in q so we can use it onwards
     q.eq[name].event = events[index];
 
-    condition_t condition = instruction.cpp.conditions[name];
+    condition_t &condition = instruction.cpp.conditions[name];
     for(rule_t &rule : condition.rules){
         string left, right;
         // left
@@ -1046,6 +1046,10 @@ Php::Value interpreter(Php::Parameters &params)
     Php::Value lul = xdd;
     std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
     return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();*/
+
+    if(!params.size()){
+        return false;
+    }
 
     auto code_php = params[0];
     auto events_php = params[1];
