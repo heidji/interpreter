@@ -1457,9 +1457,6 @@ Php::Value interpreter(Php::Parameters &params)
 
     // type conversions complete / begin query
     // multithread loop
-    int c_s = code.size();
-    int e_s = events.size();
-    int loop = c_s * e_s;
 
     // sep code
     vector<string> v_i_event_name;
@@ -1467,190 +1464,191 @@ Php::Value interpreter(Php::Parameters &params)
         v_i_event_name.push_back(i_event_name);
     }
 
-    #pragma omp parallel for
-    for(int iter = 0; iter < loop; iter++){
-        int step = floor(iter/c_s);
-        string i_event_name = v_i_event_name[iter%c_s];
-        vector<instruction_t> &code_blocks = code[i_event_name];
-        for (instruction_t &instruction : code_blocks)
-        {
-            vector<string> it;
-            q_t q;
-            if (!testConditions(instruction.primary, instruction, events, step, step, q, it))
-                continue;
-            // find all events to prevent senseless loop
-            for(auto&& [name, condition] : instruction.cpp.conditions){
-                if(name == instruction.primary || !condition.isEvent)
+    #pragma omp parallel for schedule(dynamic) collapse(2)
+    for(int step = 0; step < events.size(); step++){
+        for(int code_step = 0; code_step < code.size(); code_step++){
+            string i_event_name = v_i_event_name[code_step];
+            vector<instruction_t> &code_blocks = code[i_event_name];
+            for (instruction_t &instruction : code_blocks)
+            {
+                vector<string> it;
+                q_t q;
+                if (!testConditions(instruction.primary, instruction, events, step, step, q, it))
                     continue;
-                findEvent(name, instruction, step, events, q, it);
-            }
-            // simple
-            for(rule_side_t &side : instruction.cpp.formula.simple){
-                if (side.qualifier != "" && !q.eq[side.event].qualifier.count(side.qualifier))
-                {
-                    if(testEventQualifierConditions(side.event, side.qualifier, instruction, step, events, q, it)){
-                        q.evals[side.event + "." + side.qualifier] = true;
-                        if (instruction.primary == side.event)
-                            q.evals[side.qualifier] = true;
-                    }else{
-                        q.evals[side.event + "." + side.qualifier] = false;
-                        if (instruction.primary == side.event)
-                            q.evals[side.qualifier] = false;
-                    }
-
+                // find all events to prevent senseless loop
+                for(auto&& [name, condition] : instruction.cpp.conditions){
+                    if(name == instruction.primary || !condition.isEvent)
+                        continue;
+                    findEvent(name, instruction, step, events, q, it);
                 }
-            }
-            // connected
-            for(formula_connected_t &rule : instruction.cpp.formula.connected){
-                string left, right = "";
-                for(int i = 0; i < 2; i++){
-                    rule_side_t side;
-                    if (i == 0)
-                        side = rule.left;
-                    else
-                        side = rule.right;
-                    if(side.constant){
-                        if(i == 0)
-                            left = side.var;
-                        else
-                            right = side.var;
-                    }else{
-                        if (!q.eq.count(side.event))
-                        {
-                            q.evals[rule.query] = false;
-                            break;
+                // simple
+                for(rule_side_t &side : instruction.cpp.formula.simple){
+                    if (side.qualifier != "" && !q.eq[side.event].qualifier.count(side.qualifier))
+                    {
+                        if(testEventQualifierConditions(side.event, side.qualifier, instruction, step, events, q, it)){
+                            q.evals[side.event + "." + side.qualifier] = true;
+                            if (instruction.primary == side.event)
+                                q.evals[side.qualifier] = true;
+                        }else{
+                            q.evals[side.event + "." + side.qualifier] = false;
+                            if (instruction.primary == side.event)
+                                q.evals[side.qualifier] = false;
                         }
-                        if (side.qualifier != "" && !q.eq[side.event].qualifier.count(side.qualifier))
-                        {
-                            if(!testEventQualifierConditions(side.event, side.qualifier, instruction, step, events, q, it)){
+
+                    }
+                }
+                // connected
+                for(formula_connected_t &rule : instruction.cpp.formula.connected){
+                    string left, right = "";
+                    for(int i = 0; i < 2; i++){
+                        rule_side_t side;
+                        if (i == 0)
+                            side = rule.left;
+                        else
+                            side = rule.right;
+                        if(side.constant){
+                            if(i == 0)
+                                left = side.var;
+                            else
+                                right = side.var;
+                        }else{
+                            if (!q.eq.count(side.event))
+                            {
                                 q.evals[rule.query] = false;
                                 break;
                             }
+                            if (side.qualifier != "" && !q.eq[side.event].qualifier.count(side.qualifier))
+                            {
+                                if(!testEventQualifierConditions(side.event, side.qualifier, instruction, step, events, q, it)){
+                                    q.evals[rule.query] = false;
+                                    break;
+                                }
+                            }
+                            string temp;
+                            if(side.qualifier != ""){
+                                temp = q.eq[side.event].qualifier[side.qualifier].params[side.var];
+                            }else{
+                                temp = q.eq[side.event].event.params[side.var];
+                            }
+                            if (i == 0)
+                                left = temp;
+                            else
+                                right = temp;
                         }
-                        string temp;
-                        if(side.qualifier != ""){
-                            temp = q.eq[side.event].qualifier[side.qualifier].params[side.var];
-                        }else{
-                            temp = q.eq[side.event].event.params[side.var];
-                        }
-                        if (i == 0)
-                            left = temp;
-                        else
-                            right = temp;
                     }
-                }
-                if(eval_with_op(left, right, rule.op)){
-                    q.evals[rule.query] = true;
-                }else{
-                    q.evals[rule.query] = false;
-                }
-            }
-
-            /////////////////////////
-            // TEMP EVAL FOR DEBUG //
-            /////////////////////////
-
-            // eval formula
-            string formula = instruction.formula;
-            // extract all elements
-            string formula_temp = " " + formula + " ";
-            while (formula_temp.find("(") != std::string::npos)
-            {
-                formula_temp.replace(formula_temp.find("("), 1, " ");
-            }
-            while (formula_temp.find(")") != std::string::npos)
-            {
-                formula_temp.replace(formula_temp.find(")"), 1, " ");
-            }
-            while (formula_temp.find(" and ") != std::string::npos)
-            {
-                formula_temp.replace(formula_temp.find(" and "), 5, " ");
-            }
-            while (formula_temp.find(" or ") != std::string::npos)
-            {
-                formula_temp.replace(formula_temp.find(" or "), 4, " ");
-            }
-            while (formula_temp.find(" not ") != std::string::npos)
-            {
-                formula_temp.replace(formula_temp.find(" not "), 5, " ");
-            }
-            clean(formula_temp, false);
-
-            vector<string> formula_args = trim_explode(" ", formula_temp);
-
-            vector<string> sorted_args;
-
-            // unique
-            vector<string> vec = formula_args;
-            sort(vec.begin(), vec.end());
-            vec.erase(unique(vec.begin(), vec.end()), vec.end());
-            formula_args = vec;
-
-            while (sorted_args.size() < formula_args.size())
-            {
-                int s = 0;
-                string max = "";
-                for (string &arg : formula_args)
-                {
-                    if (in_array(arg, sorted_args))
-                        continue;
-                    if (arg.length() > s)
-                    {
-                        max = arg;
-                        s = arg.length();
-                    }
-                }
-                sorted_args.push_back(max);
-            }
-
-            for (string &arg : sorted_args)
-            {
-                if (arg == "")
-                    continue;
-                if (!q.evals[arg])
-                {
-                    while (formula.find(arg) != std::string::npos)
-                    {
-                        formula.replace(formula.find(arg), arg.length(), "false");
-                    }
-                }
-                else
-                {
-                    while (formula.find(arg) != std::string::npos)
-                    {
-                        formula.replace(formula.find(arg), arg.length(), "true");
-                    }
-                }
-            }
-
-            /////////////////////////
-            // TEMP EVAL FOR DEBUG //
-            /////////////////////////
-
-            // moment of truth
-
-            if(eval(formula)){
-                result_t temp;
-                temp.event_type = i_event_name;
-                temp.event_id = q.eq[instruction.primary].event.params["eventId"];
-                temp.id = q.eq[instruction.primary].event.params["id"];
-                temp.time = q.eq[instruction.primary].event.params["timeStamp"];
-                temp.noten_context = instruction.noten_context;
-                for(auto&& [key, val] : instruction.cpp.values){
-                    if(val.constant){
-                        temp.values[key] = val.var;
+                    if(eval_with_op(left, right, rule.op)){
+                        q.evals[rule.query] = true;
                     }else{
-                        if(val.qualifier != ""){
-                            temp.values[key] = q.eq[val.event].qualifier[val.qualifier].params[val.var];
-                        }else{
-                            temp.values[key] = q.eq[val.event].event.params[val.var];
+                        q.evals[rule.query] = false;
+                    }
+                }
+
+                /////////////////////////
+                // TEMP EVAL FOR DEBUG //
+                /////////////////////////
+
+                // eval formula
+                string formula = instruction.formula;
+                // extract all elements
+                string formula_temp = " " + formula + " ";
+                while (formula_temp.find("(") != std::string::npos)
+                {
+                    formula_temp.replace(formula_temp.find("("), 1, " ");
+                }
+                while (formula_temp.find(")") != std::string::npos)
+                {
+                    formula_temp.replace(formula_temp.find(")"), 1, " ");
+                }
+                while (formula_temp.find(" and ") != std::string::npos)
+                {
+                    formula_temp.replace(formula_temp.find(" and "), 5, " ");
+                }
+                while (formula_temp.find(" or ") != std::string::npos)
+                {
+                    formula_temp.replace(formula_temp.find(" or "), 4, " ");
+                }
+                while (formula_temp.find(" not ") != std::string::npos)
+                {
+                    formula_temp.replace(formula_temp.find(" not "), 5, " ");
+                }
+                clean(formula_temp, false);
+
+                vector<string> formula_args = trim_explode(" ", formula_temp);
+
+                vector<string> sorted_args;
+
+                // unique
+                vector<string> vec = formula_args;
+                sort(vec.begin(), vec.end());
+                vec.erase(unique(vec.begin(), vec.end()), vec.end());
+                formula_args = vec;
+
+                while (sorted_args.size() < formula_args.size())
+                {
+                    int s = 0;
+                    string max = "";
+                    for (string &arg : formula_args)
+                    {
+                        if (in_array(arg, sorted_args))
+                            continue;
+                        if (arg.length() > s)
+                        {
+                            max = arg;
+                            s = arg.length();
+                        }
+                    }
+                    sorted_args.push_back(max);
+                }
+
+                for (string &arg : sorted_args)
+                {
+                    if (arg == "")
+                        continue;
+                    if (!q.evals[arg])
+                    {
+                        while (formula.find(arg) != std::string::npos)
+                        {
+                            formula.replace(formula.find(arg), arg.length(), "false");
+                        }
+                    }
+                    else
+                    {
+                        while (formula.find(arg) != std::string::npos)
+                        {
+                            formula.replace(formula.find(arg), arg.length(), "true");
                         }
                     }
                 }
-                m.lock();
-                collection.push_back(temp);
-                m.unlock();
-                break;
+
+                /////////////////////////
+                // TEMP EVAL FOR DEBUG //
+                /////////////////////////
+
+                // moment of truth
+
+                if(eval(formula)){
+                    result_t temp;
+                    temp.event_type = i_event_name;
+                    temp.event_id = q.eq[instruction.primary].event.params["eventId"];
+                    temp.id = q.eq[instruction.primary].event.params["id"];
+                    temp.time = q.eq[instruction.primary].event.params["timeStamp"];
+                    temp.noten_context = instruction.noten_context;
+                    for(auto&& [key, val] : instruction.cpp.values){
+                        if(val.constant){
+                            temp.values[key] = val.var;
+                        }else{
+                            if(val.qualifier != ""){
+                                temp.values[key] = q.eq[val.event].qualifier[val.qualifier].params[val.var];
+                            }else{
+                                temp.values[key] = q.eq[val.event].event.params[val.var];
+                            }
+                        }
+                    }
+                    m.lock();
+                    collection.push_back(temp);
+                    m.unlock();
+                    break;
+                }
             }
         }
     }
