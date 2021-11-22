@@ -237,6 +237,7 @@ struct cpp_t
 struct e_q_t
 {
     event_t event;
+    map<string, bool> evals;
     map<string, qualifier_t> qualifier;
 
     string toString(int c = 0){
@@ -254,7 +255,7 @@ struct e_q_t
 struct q_t
 {
     map<string, e_q_t> eq;
-    map<string, bool> evals; // only contains evaluated events and expressions. not e.q because it would kill the loop
+    map<string, bool> evals;
     map<string, string> test;
 
     string toString(int c = 0){
@@ -924,9 +925,15 @@ bool testEventQualifierConditions(string &name, string &qname, instruction_t &in
             if(rule.right.constant){
                 right = rule.right.var;
             }else{
-                if (!q.evals[rule.right.event] || !q.eq[rule.right.event].qualifier.count(rule.right.qualifier))
+                if (!q.evals[rule.right.event] || !q.eq[rule.right.event].evals.count(rule.right.qualifier))
                 {
+                    q.eq[rule.right.event].evals[rule.right.qualifier] = false;
                     return false;
+                }else if(!q.eq[rule.right.event].qualifier.count(rule.right.qualifier)){
+                    if(!testEventQualifierConditions(rule.right.event, rule.right.qualifier, instruction, primary_index, events, q, it)){
+                        q.eq[rule.right.event].evals[rule.right.qualifier] = false;
+                        return false;
+                    }
                 }
                 right = q.eq[rule.right.event].qualifier[rule.right.qualifier].params[rule.right.var];
             }
@@ -934,10 +941,12 @@ bool testEventQualifierConditions(string &name, string &qname, instruction_t &in
                 goto cnt;
             }
         }
+        q.eq[name].evals[qname] = true;
         q.eq[name].qualifier[qname] = qualifier;
         return true;
         cnt:;
     }
+    q.eq[name].evals[qname] = false;
     return false;
 }
 
@@ -955,7 +964,7 @@ bool testConditions(string name, instruction_t &instruction, vector<event_t> &ev
             string temp = q.eq[rule.left.event].event.params[rule.left.var];
             left = temp;
         }else{
-            if (!q.eq[rule.left.event].qualifier.count(rule.left.qualifier)){
+            if (!q.eq[rule.left.event].evals.count(rule.left.qualifier)){
                 bool test = testEventQualifierConditions(rule.left.event, rule.left.qualifier, instruction, primary_index, events, q, it);
                 if(test && rule.isNot || !test && !rule.isNot){
                     q.evals[name] = false;
@@ -964,7 +973,7 @@ bool testConditions(string name, instruction_t &instruction, vector<event_t> &ev
                 }else{
                     continue;
                 }
-            }else{
+            }else if(!q.eq[rule.left.event].evals[rule.left.qualifier]){
                 if (!rule.isNot){
                     q.evals[name] = false;
                     q.eq.erase(name);
@@ -987,7 +996,7 @@ bool testConditions(string name, instruction_t &instruction, vector<event_t> &ev
                 return false;
             }
             if(rule.right.qualifier != ""){
-                if(!q.eq[rule.right.event].qualifier.count(rule.right.qualifier)){
+                if(!q.eq[rule.right.event].evals[rule.right.qualifier]){
                     bool test = testEventQualifierConditions(rule.right.event, rule.right.qualifier, instruction, primary_index, events, q, it);
                     if (!test)
                     {
@@ -1433,6 +1442,7 @@ Php::Value interpreter(Php::Parameters &params)
     //return code2string(code);
 
     vector<event_t> events;
+    events.reserve(3000);
     for (auto &&[step, event_php] : events_php){
         event_t event;
         for (auto &&[k, v] : event_php){
@@ -1483,18 +1493,23 @@ Php::Value interpreter(Php::Parameters &params)
                 }
                 // simple
                 for(rule_side_t &side : instruction.cpp.formula.simple){
-                    if (side.qualifier != "" && !q.eq[side.event].qualifier.count(side.qualifier))
+                    if (side.qualifier != "")
                     {
-                        if(testEventQualifierConditions(side.event, side.qualifier, instruction, step, events, q, it)){
-                            q.evals[side.event + "." + side.qualifier] = true;
-                            if (instruction.primary == side.event)
-                                q.evals[side.qualifier] = true;
+                        if(!q.eq[side.event].evals.count(side.qualifier)){
+                            if(testEventQualifierConditions(side.event, side.qualifier, instruction, step, events, q, it)){
+                                q.evals[side.event + "." + side.qualifier] = true;
+                                if (instruction.primary == side.event)
+                                    q.evals[side.qualifier] = true;
+                            }else{
+                                q.evals[side.event + "." + side.qualifier] = false;
+                                if (instruction.primary == side.event)
+                                    q.evals[side.qualifier] = false;
+                            }
                         }else{
-                            q.evals[side.event + "." + side.qualifier] = false;
+                            q.evals[side.event + "." + side.qualifier] = q.eq[side.event].evals.count(side.qualifier);
                             if (instruction.primary == side.event)
-                                q.evals[side.qualifier] = false;
+                                q.evals[side.qualifier] = q.eq[side.event].evals.count(side.qualifier);
                         }
-
                     }
                 }
                 // connected
@@ -1517,11 +1532,14 @@ Php::Value interpreter(Php::Parameters &params)
                                 q.evals[rule.query] = false;
                                 break;
                             }
-                            if (side.qualifier != "" && !q.eq[side.event].qualifier.count(side.qualifier))
+                            if (side.qualifier != "")
                             {
-                                if(!testEventQualifierConditions(side.event, side.qualifier, instruction, step, events, q, it)){
-                                    q.evals[rule.query] = false;
-                                    break;
+                                if(!q.eq[side.event].evals.count(side.qualifier)){
+                                    if (!testEventQualifierConditions(side.event, side.qualifier, instruction, step, events, q, it))
+                                    {
+                                        q.evals[rule.query] = false;
+                                        break;
+                                    }
                                 }
                             }
                             string temp;
