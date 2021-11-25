@@ -925,8 +925,7 @@ bool testEventQualifierConditions(string &name, string &qname, instruction_t &in
             if(rule.right.constant){
                 right = rule.right.var;
             }else{
-                if (!q.evals[rule.right.event] || !q.eq[rule.right.event].evals.count(rule.right.qualifier))
-                {
+                if (!q.evals[rule.right.event] || !q.eq[rule.right.event].evals[rule.right.qualifier]){
                     q.eq[rule.right.event].evals[rule.right.qualifier] = false;
                     return false;
                 }else if(!q.eq[rule.right.event].qualifier.count(rule.right.qualifier)){
