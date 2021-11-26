@@ -1673,7 +1673,7 @@ Php::Value interpreter(Php::Parameters &params)
               collection.end(),
               [](const result_t &lhs, const result_t &rhs)
               {
-                  return lhs.time < rhs.time;
+                  return lhs.time < rhs.time || (lhs.time == rhs.time && lhs.id < rhs.id);
               });
 
     return result2json(collection);
