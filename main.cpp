@@ -1256,7 +1256,7 @@ Php::Value interpreter(Php::Parameters &params)
                                     if (s.var == "typeId" || s.var == "qualifierId")
                                     {
                                         entry_opt_flag = true;
-                                        if (s.var == "typeId")
+                                        if (s.var == "typeId" && name == c.primary)
                                             c.optTid = sides[1];
                                     }
                                 }
