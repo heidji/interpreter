@@ -287,12 +287,14 @@ struct instruction_t
     map<string, string> values;
     map<string, map<string, map<string, map<string, vector<map<string, vector<string>>>>>>> skips;
     string noten_context = "";
+    string optTid = "";
     cpp_t cpp;
 
     string toString(int c = 0)
     {
         string s;
-        s = k(c) + "primary: " + primary + "\n" + k(c) + "formula: " + formula + "\n" + k(c) + "conditions: {\n";
+        s = k(c) + "primary: " + primary + "\n" + k(c) + "formula: " + formula + "\n" + 
+        k(c) + "noten_context: " + noten_context + "\n" + k(c) + "optTid: " + optTid + "\n" + k(c) + "conditions: {\n";
         for (auto &&[key, v] : conditions)
         {
             s += k(c + 1) + key + ": " + v + "\n";
@@ -1254,6 +1256,8 @@ Php::Value interpreter(Php::Parameters &params)
                                     if (s.var == "typeId" || s.var == "qualifierId")
                                     {
                                         entry_opt_flag = true;
+                                        if (s.var == "typeId")
+                                            c.optTid = sides[1];
                                     }
                                 }
 
@@ -1441,6 +1445,7 @@ Php::Value interpreter(Php::Parameters &params)
     //return code2string(code);
 
     vector<event_t> events;
+    map<string, vector<int>> eventsOpt;
     events.reserve(3000);
     for (auto &&[step, event_php] : events_php){
         event_t event;
@@ -1461,25 +1466,25 @@ Php::Value interpreter(Php::Parameters &params)
         }
         event.time = strtotime(event.params["timeStamp"]);
         events.push_back(event);
+        eventsOpt[event.params["typeId"]].push_back(step);
     }
     //return events2string(events);
 
     // type conversions complete / begin query
     // multithread loop
-
     // sep code
     vector<string> v_i_event_name;
     for (auto&& [i_event_name, code_blocks] : code){
         v_i_event_name.push_back(i_event_name);
     }
 
-    #pragma omp parallel for schedule(dynamic) collapse(2)
-    for(int step = 0; step < events.size(); step++){
-        for(int code_step = 0; code_step < code.size(); code_step++){
-            string i_event_name = v_i_event_name[code_step];
-            vector<instruction_t> &code_blocks = code[i_event_name];
-            for (instruction_t &instruction : code_blocks)
-            {
+    #pragma omp parallel for
+    for(int code_step = 0; code_step < code.size(); code_step++){
+        string i_event_name = v_i_event_name[code_step];
+        vector<instruction_t> &code_blocks = code[i_event_name];
+        for (instruction_t &instruction : code_blocks)
+        {
+            for(int step : eventsOpt[instruction.optTid]){
                 vector<string> it;
                 q_t q;
                 if (!testConditions(instruction.primary, instruction, events, step, step, q, it))
@@ -1664,7 +1669,6 @@ Php::Value interpreter(Php::Parameters &params)
                     m.lock();
                     collection.push_back(temp);
                     m.unlock();
-                    break;
                 }
             }
         }
