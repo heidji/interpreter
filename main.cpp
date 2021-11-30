@@ -1426,7 +1426,7 @@ Php::Value interpreter(Php::Parameters &params)
                     }
                     else
                     {
-                        s.event = isEventCondition(args[0], c.conditions, c.primary) ? args[0] : "";
+                        s.event = isEventCondition(args[0], c.conditions, c.primary) ? args[0] : c.primary;
                         s.qualifier = isEventCondition(args[0], c.conditions, c.primary) ? "" : args[0];
                         s.var = args[1];
                     }

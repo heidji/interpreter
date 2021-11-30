@@ -1,0 +1,24 @@
+{
+    "uploadOnSave": true,
+    "autoDelete": true,
+    "activeTargets": [
+        "My SFTP"
+    ],
+    "concurrency": 5,
+    "ignore": [
+        ".git/**/*",
+        ".vscode/**/*"
+    ],
+    "targets": [
+        {
+            "name": "My SFTP",
+            "type": "sftp",
+            "host": "hossidev.ligainsider.de",
+            "port": 22,
+            "user": "root",
+            "dir": "/root/PHP-CPP/Examples/EmptyExtension",
+            "privateKey": "/Users/hossi/.ssh/test",
+            "passphrase": null
+        }
+    ]
+}
