@@ -905,13 +905,12 @@ bool findEvent(string name, instruction_t &instruction, int primary_index, vecto
         }
 
         s++;
-        if (s >= times && q.evals.count(name))
+        if (s >= times && q.evals[name])
         {
             return true;
         }
     }
 
-    q.evals[name] = false;
     return false;
 }
 
@@ -930,11 +929,9 @@ bool testEventQualifierConditions(string &name, string &qname, instruction_t &in
                 if (!q.evals[rule.right.event] || !q.eq[rule.right.event].evals[rule.right.qualifier]){
                     q.eq[rule.right.event].evals[rule.right.qualifier] = false;
                     return false;
-                }else if(!q.eq[rule.right.event].qualifier.count(rule.right.qualifier)){
-                    if(!testEventQualifierConditions(rule.right.event, rule.right.qualifier, instruction, primary_index, events, q, it)){
-                        q.eq[rule.right.event].evals[rule.right.qualifier] = false;
-                        return false;
-                    }
+                }else if(!testEventQualifierConditions(rule.right.event, rule.right.qualifier, instruction, primary_index, events, q, it)){
+                    q.eq[rule.right.event].evals[rule.right.qualifier] = false;
+                    return false;
                 }
                 right = q.eq[rule.right.event].qualifier[rule.right.qualifier].params[rule.right.var];
             }
