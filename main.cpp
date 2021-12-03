@@ -612,9 +612,9 @@ vector<vector<logic_gate_t>> prep_expr(string str){
             {
                 node.isNot = true;
                 s_and.replace(temp, 3, "");
-                clean(s_and);
+                clean(s_and, false);
             }
-            clean(s_and);
+            clean(s_and, false);
             node.query = s_and;
             and_node.push_back(node);
         }
@@ -624,7 +624,7 @@ vector<vector<logic_gate_t>> prep_expr(string str){
 }
 
 map<string, vector<vector<logic_gate_t>>> prep(string str){
-    clean(str);
+    clean(str, false);
 
     map<string, vector<vector<logic_gate_t>>> logic;
 
@@ -643,7 +643,7 @@ map<string, vector<vector<logic_gate_t>>> prep(string str){
         vector<vector<logic_gate_t>> node = prep_expr(str.substr(pos_start + 1, pos_end - pos_start - 1));
         string name = "_node_"+to_string(c);
         str.replace(pos_start, pos_end - pos_start + 1, " " + name + " ");
-        clean(str);
+        clean(str, false);
         logic[name] = node;
         c++;
     }
