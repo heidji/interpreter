@@ -651,27 +651,25 @@ map<string, vector<vector<logic_gate_t>>> prep(string str){
     logic["_node_start"] = prep_expr(str);
 }
 
-bool eval(string str)
+bool eval(string query, instruction_t &instruction, q_t &q)
 {
-
-    if (str == "")
+    for(vector<logic_gate_t> &and_node : instruction.cpp.formula.logic[query]){
+        for(logic_gate_t &gate : and_node){
+            if(!instruction.cpp.formula.logic.count(gate.query)){
+                if(!q.evals[gate.query] && !gate.isNot){
+                    goto cont_or;
+                }
+            }else{
+                if(!eval(gate.query, instruction, q) && !gate.isNot){
+                    goto cont_or;
+                }
+            }
+        }
+        // passes
         return true;
-
-    clean(str);
-
-    while (str.find("(") != string::npos)
-    {
-        // find last "("
-        size_t pos_start = str.find_last_of("(");
-        // find the following ")"
-        size_t pos_end = str.find(")", pos_start + 1);
-        if (pos_end == string::npos)
-            throw std::invalid_argument("invalid expression: missing closing braces");
-        str.replace(pos_start, pos_end - pos_start + 1, " " + eval_exp(str.substr(pos_start + 1, pos_end - pos_start - 1) + " "));
-        clean(str);
+        cont_or:;
     }
-
-    return eval_exp(str) == "true";
+    return false;
 }
 
 string operands(string str)
@@ -1511,7 +1509,7 @@ Php::Value interpreter(Php::Parameters &params)
         }
         code[i_event_name] = code_block;
     }
-    return code2string(code);
+    //return code2string(code);
 
     vector<event_t> events;
     map<string, vector<int>> eventsOpt;
@@ -1634,111 +1632,47 @@ Php::Value interpreter(Php::Parameters &params)
                     }
                 }
 
-                /////////////////////////
-                // TEMP EVAL FOR DEBUG //
-                /////////////////////////
-
-                // eval formula
-                string formula = instruction.formula;
-                // extract all elements
-                string formula_temp = " " + formula + " ";
-                while (formula_temp.find("(") != std::string::npos)
-                {
-                    formula_temp.replace(formula_temp.find("("), 1, " ");
-                }
-                while (formula_temp.find(")") != std::string::npos)
-                {
-                    formula_temp.replace(formula_temp.find(")"), 1, " ");
-                }
-                while (formula_temp.find(" and ") != std::string::npos)
-                {
-                    formula_temp.replace(formula_temp.find(" and "), 5, " ");
-                }
-                while (formula_temp.find(" or ") != std::string::npos)
-                {
-                    formula_temp.replace(formula_temp.find(" or "), 4, " ");
-                }
-                while (formula_temp.find(" not ") != std::string::npos)
-                {
-                    formula_temp.replace(formula_temp.find(" not "), 5, " ");
-                }
-                clean(formula_temp, false);
-
-                vector<string> formula_args = trim_explode(" ", formula_temp);
-
-                vector<string> sorted_args;
-
-                // unique
-                vector<string> vec = formula_args;
-                sort(vec.begin(), vec.end());
-                vec.erase(unique(vec.begin(), vec.end()), vec.end());
-                formula_args = vec;
-
-                while (sorted_args.size() < formula_args.size())
-                {
-                    int s = 0;
-                    string max = "";
-                    for (string &arg : formula_args)
-                    {
-                        if (in_array(arg, sorted_args))
-                            continue;
-                        if (arg.length() > s)
-                        {
-                            max = arg;
-                            s = arg.length();
-                        }
-                    }
-                    sorted_args.push_back(max);
-                }
-
-                for (string &arg : sorted_args)
-                {
-                    if (arg == "")
-                        continue;
-                    if (!q.evals[arg])
-                    {
-                        while (formula.find(arg) != std::string::npos)
-                        {
-                            formula.replace(formula.find(arg), arg.length(), "false");
-                        }
-                    }
-                    else
-                    {
-                        while (formula.find(arg) != std::string::npos)
-                        {
-                            formula.replace(formula.find(arg), arg.length(), "true");
-                        }
-                    }
-                }
-
-                /////////////////////////
-                // TEMP EVAL FOR DEBUG //
-                /////////////////////////
-
                 // moment of truth
 
-                if(eval(formula)){
-                    result_t temp;
-                    temp.event_type = i_event_name;
-                    temp.event_id = q.eq[instruction.primary].event.params["eventId"];
-                    temp.id = q.eq[instruction.primary].event.params["id"];
-                    temp.time = q.eq[instruction.primary].event.params["timeStamp"];
-                    temp.noten_context = instruction.noten_context;
-                    for(auto&& [key, val] : instruction.cpp.values){
-                        if(val.constant){
-                            temp.values[key] = val.var;
+                for(vector<logic_gate_t> &and_node : instruction.cpp.formula.logic["_start_node"]){
+                    for(logic_gate_t &gate : and_node){
+                        if(!instruction.cpp.formula.logic.count(gate.query)){
+                            if(!q.evals[gate.query] && !gate.isNot){
+                                goto cont_or;
+                            }
                         }else{
-                            if(val.qualifier != ""){
-                                temp.values[key] = q.eq[val.event].qualifier[val.qualifier].params[val.var];
-                            }else{
-                                temp.values[key] = q.eq[val.event].event.params[val.var];
+                            if(!eval(gate.query, instruction, q) && !gate.isNot){
+                                goto cont_or;
                             }
                         }
                     }
-                    m.lock();
-                    collection.push_back(temp);
-                    m.unlock();
+                    // passes
+                    goto passed;
+                    cont_or:;
+                    continue;
                 }
+                continue;
+                passed:;
+                result_t temp;
+                temp.event_type = i_event_name;
+                temp.event_id = q.eq[instruction.primary].event.params["eventId"];
+                temp.id = q.eq[instruction.primary].event.params["id"];
+                temp.time = q.eq[instruction.primary].event.params["timeStamp"];
+                temp.noten_context = instruction.noten_context;
+                for(auto&& [key, val] : instruction.cpp.values){
+                    if(val.constant){
+                        temp.values[key] = val.var;
+                    }else{
+                        if(val.qualifier != ""){
+                            temp.values[key] = q.eq[val.event].qualifier[val.qualifier].params[val.var];
+                        }else{
+                            temp.values[key] = q.eq[val.event].event.params[val.var];
+                        }
+                    }
+                }
+                m.lock();
+                collection.push_back(temp);
+                m.unlock();
             }
         }
     }
