@@ -18,6 +18,8 @@
         "__bit_reference": "cpp",
         "algorithm": "cpp",
         "chrono": "cpp",
-        "stdexcept": "cpp"
+        "stdexcept": "cpp",
+        "iosfwd": "cpp",
+        "filesystem": "cpp"
     }
 }

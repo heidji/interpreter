@@ -180,12 +180,16 @@ struct logic_gate_t
 {
     bool isNot = false;
     string query;
+
+    string toString(int c = 0){
+        return k(c) + "isNot: " + bool2str(isNot) + ", query: " + query;
+    }
 };
 
 struct formula_t
 {
     map<string, string> expanded;
-    vector<vector<logic_gate_t>> logic;
+    map<string, vector<vector<logic_gate_t>>> logic;
     vector<rule_side_t> simple;
     vector<formula_connected_t> connected;
 
@@ -195,7 +199,19 @@ struct formula_t
         {
             s += k(c + 1) + key + ": " + v + "\n";
         }
-        s += k(c) + "]\n" + k(c) + "logic: TBD\n" + k(c) + "simple: [\n";
+        s += k(c) + "]\n" + k(c) + "logic: {\n";
+        for(auto &&[key, v] : logic){
+            s += k(c+1) + key + ": [\n";
+            for(vector<logic_gate_t> &v1 : v){
+                s += k(c+2) + "[\n";
+                for(logic_gate_t &v2 : v1){
+                    s += k(c+3) + "{" + v2.toString() + "}\n";
+                }
+                s += k(c+2) + "]\n";
+            }
+            s += k(c+1) + "]\n";
+        }
+        s += k(c) + "}\n" + k(c) + "simple: [\n";
         for (rule_side_t &side : simple)
         {
             s += k(c + 1) + "{\n" + side.toString(c + 2) + "\n" + k(c + 1)+ "}\n";
@@ -579,6 +595,60 @@ void clean(string &str, bool lower = true)
         str.replace(pos, 2, " ");
         pos = str.find("  ");
     }
+}
+
+vector<vector<logic_gate_t>> prep_expr(string str){
+    vector<vector<logic_gate_t>> res;
+    auto or_exp = explode("or", str);
+    for (string &s_or : or_exp)
+    {
+        auto and_exp = explode("and", s_or);
+        vector<logic_gate_t> and_node;
+        for (string &s_and : and_exp)
+        {
+            logic_gate_t node;
+            int temp = s_and.find("not");
+            if (temp != string::npos)
+            {
+                node.isNot = true;
+                s_and.replace(temp, 3, "");
+                clean(s_and);
+            }
+            clean(s_and);
+            node.query = s_and;
+            and_node.push_back(node);
+        }
+        res.push_back(and_node);
+    }
+    return res;
+}
+
+map<string, vector<vector<logic_gate_t>>> prep(string str){
+    clean(str);
+
+    map<string, vector<vector<logic_gate_t>>> logic;
+
+    if(str == "")
+        return logic;
+
+    int c = 0;
+    while (str.find("(") != string::npos)
+    {
+        // find last "("
+        size_t pos_start = str.find_last_of("(");
+        // find the following ")"
+        size_t pos_end = str.find(")", pos_start + 1);
+        if (pos_end == string::npos)
+            throw std::invalid_argument("invalid expression: missing closing braces");
+        vector<vector<logic_gate_t>> node = prep_expr(str.substr(pos_start + 1, pos_end - pos_start - 1));
+        string name = "_node_"+to_string(c);
+        str.replace(pos_start, pos_end - pos_start + 1, " " + name + " ");
+        clean(str);
+        logic[name] = node;
+        c++;
+    }
+    // no more braces
+    logic["_node_start"] = prep_expr(str);
 }
 
 bool eval(string str)
@@ -1295,6 +1365,8 @@ Php::Value interpreter(Php::Parameters &params)
             }
             c.cpp.conditions = cs;
 
+            c.cpp.formula.logic = prep(c.formula);
+
             // eval formula
             // extract all elements
             string formula_temp = " " + c.formula + " ";
@@ -1439,7 +1511,7 @@ Php::Value interpreter(Php::Parameters &params)
         }
         code[i_event_name] = code_block;
     }
-    //return code2string(code);
+    return code2string(code);
 
     vector<event_t> events;
     map<string, vector<int>> eventsOpt;
