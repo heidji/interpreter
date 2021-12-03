@@ -649,6 +649,7 @@ map<string, vector<vector<logic_gate_t>>> prep(string str){
     }
     // no more braces
     logic["_node_start"] = prep_expr(str);
+    return logic;
 }
 
 bool eval(string query, instruction_t &instruction, q_t &q)
@@ -1545,7 +1546,7 @@ Php::Value interpreter(Php::Parameters &params)
         v_i_event_name.push_back(i_event_name);
     }
 
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for(int code_step = 0; code_step < code.size(); code_step++){
         string i_event_name = v_i_event_name[code_step];
         vector<instruction_t> &code_blocks = code[i_event_name];
@@ -1634,6 +1635,8 @@ Php::Value interpreter(Php::Parameters &params)
 
                 // moment of truth
 
+                if(!instruction.cpp.formula.logic.count("_start_node"))
+                    goto passed;
                 for(vector<logic_gate_t> &and_node : instruction.cpp.formula.logic["_start_node"]){
                     for(logic_gate_t &gate : and_node){
                         if(!instruction.cpp.formula.logic.count(gate.query)){
