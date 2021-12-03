@@ -656,12 +656,13 @@ bool eval(string query, instruction_t &instruction, q_t &q)
 {
     for(vector<logic_gate_t> &and_node : instruction.cpp.formula.logic[query]){
         for(logic_gate_t &gate : and_node){
-            if(!instruction.cpp.formula.logic.count(gate.query)){
-                if(!q.evals[gate.query] && !gate.isNot){
+            if(!q.evals.count(gate.query)){
+                bool temp = eval(gate.query, instruction, q);
+                if(!temp && !gate.isNot || temp && gate.isNot){
                     goto cont_or;
                 }
             }else{
-                if(!eval(gate.query, instruction, q) && !gate.isNot){
+                if(!q.evals[gate.query] && !gate.isNot || q.evals[gate.query] && gate.isNot){
                     goto cont_or;
                 }
             }
@@ -1546,7 +1547,7 @@ Php::Value interpreter(Php::Parameters &params)
         v_i_event_name.push_back(i_event_name);
     }
 
-    //#pragma omp parallel for
+    #pragma omp parallel for
     for(int code_step = 0; code_step < code.size(); code_step++){
         string i_event_name = v_i_event_name[code_step];
         vector<instruction_t> &code_blocks = code[i_event_name];
@@ -1634,17 +1635,17 @@ Php::Value interpreter(Php::Parameters &params)
                 }
 
                 // moment of truth
-
-                if(!instruction.cpp.formula.logic.count("_start_node"))
+                if(!instruction.cpp.formula.logic.count("_node_start"))
                     goto passed;
-                for(vector<logic_gate_t> &and_node : instruction.cpp.formula.logic["_start_node"]){
+                for(vector<logic_gate_t> &and_node : instruction.cpp.formula.logic["_node_start"]){
                     for(logic_gate_t &gate : and_node){
-                        if(!instruction.cpp.formula.logic.count(gate.query)){
-                            if(!q.evals[gate.query] && !gate.isNot){
+                        if(!q.evals.count(gate.query)){
+                            bool temp = eval(gate.query, instruction, q);
+                            if(!temp && !gate.isNot || temp && gate.isNot){
                                 goto cont_or;
                             }
                         }else{
-                            if(!eval(gate.query, instruction, q) && !gate.isNot){
+                            if(!q.evals[gate.query] && !gate.isNot || q.evals[gate.query] && gate.isNot){
                                 goto cont_or;
                             }
                         }
