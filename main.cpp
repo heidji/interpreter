@@ -1323,8 +1323,12 @@ Php::Value interpreter(Php::Parameters &params)
                                     if (s.var == "typeId" || s.var == "qualifierId")
                                     {
                                         entry_opt_flag = true;
-                                        if (s.var == "typeId" && name == c.primary)
+                                        if (s.var == "typeId" && name == c.primary){
+                                            if(op != "=")
+                                                throw std::invalid_argument("invalid expression: primary typeId has to have a single constraint with '='");
                                             c.optTid = sides[1];
+                                            dont_add = true;
+                                        }
                                     }
                                 }
 
