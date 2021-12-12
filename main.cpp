@@ -9,13 +9,19 @@
 #include <sstream>
 #include <fstream>
 #include <mutex>
+#include <map>
+#include <iterator>
 
-#include <phpcpp.h>
+#include "include/rapidjson/document.h"
+#include "include/rapidjson/writer.h"
+#include "include/rapidjson/stringbuffer.h"
+#include "include/rapidjson/filereadstream.h"
+#include "include/rapidjson/encodedstream.h"
+
+using namespace rapidjson;
 
 using namespace std;
 using namespace std::chrono;
-
-vector<vector<string>> debug;
 
 mutex m;
 
@@ -419,46 +425,6 @@ string result2json(vector<result_t> &m, int c = 0)
     }
     s += "]";
     return s;
-}
-
-Php::Value result2phpvalue(result_t &x, int c = 0)
-{
-
-    Php::Value r;
-    r["event_type"] = x.event_type;
-    r["event_id"] = x.event_id;
-    r["id"] = x.id;
-    r["time"] = x.time;
-    r["noten_context"] = x.noten_context;
-    Php::Value values;
-    for (auto &&[key, val] : x.values)
-    {
-        values[key] = val;
-    }
-    r["values"] = values;
-
-    return r;
-}
-
-Php::Value results2phpvalue(vector<result_t> &x, int c = 0)
-{
-    Php::Value result;
-    for(result_t &m : x){
-        Php::Value r;
-        r["event_type"] = m.event_type;
-        r["event_id"] = m.event_id;
-        r["id"] = m.id;
-        r["time"] = m.time;
-        r["noten_context"] = m.noten_context;
-        Php::Value values;
-        for (auto &&[key, val] : m.values)
-        {
-            values[key] = val;
-        }
-        r["values"] = values;
-        result[result.size()] = r;
-    }
-    return result;
 }
 
 bool is_numeric(string s)
@@ -1113,51 +1079,90 @@ void replacePredefinedVar(string &var)
         var = "qualifierId";
 }
 
-Php::Value interpreter(Php::Parameters &params)
+string interpreter(Value &code_json, Value &events_json)
 {
     /*struct event e;
     e.params = {{"k", "l"}, {"k", "l"}};
     e.qualifier = {{{"k", "l"}, {"k", "l"}}, {{"k", "l"}, {"k", "l"}}, {{"k", "l"}, {"k", "l"}}};
-    return e.qualifier[2]["k"];*/
+    return e.qualifier[2]["k"];
     /*std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
     Php::Value lul = xdd;
     std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
     return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();*/
 
-    if(!params.size()){
-        return false;
-    }
-
-    auto code_php = params[0];
-    auto events_php = params[1];
-
-    /*Php::Value*/ vector<result_t> collection;
+    vector<result_t> collection;
 
     // normalize code object
     map<string, vector<instruction_t>> code;
 
-    for (auto &&[i_event_name, code_blocks] : code_php)
+    for (Value::ConstMemberIterator iter = code_json.MemberBegin(); iter != code_json.MemberEnd(); ++iter)
     {
+        string i_event_name = iter->name.GetString();
         vector<instruction_t> code_block;
-        for (auto &&[block, instruction] : code_blocks)
-        {
+        for (SizeType block = 0; block < iter->value.Size(); block++) {
             // get
             struct instruction_t c;
-            if (instruction["primary"] != "")
+            const auto &instruction = iter->value[block].GetObject();
+
+            if (instruction["primary"].GetString() != "")
             {
-                string primary_s = instruction["primary"];
+                string primary_s = instruction["primary"].GetString();
                 c.primary = primary_s;
             }
-            map<string, string> conditions_s = instruction["conditions"];
+
+            map<string, string> conditions_s;
+            for (Value::ConstMemberIterator it1 = instruction["conditions"].MemberBegin(); it1 != instruction["conditions"].MemberEnd(); ++it1){
+                conditions_s[it1->name.GetString()] = it1->value.GetString();
+            }
             c.conditions = conditions_s;
-            string formula_s = instruction["formula"];
+
+            string formula_s = instruction["formula"].GetString();
             c.formula = formula_s;
-            map<string, string> values_s = instruction["values"];
+
+            map<string, string> values_s;
+            for (Value::ConstMemberIterator it1 = instruction["values"].MemberBegin(); it1 != instruction["values"].MemberEnd(); ++it1){
+                values_s[it1->name.GetString()] = it1->value.GetString();
+            }
             c.values = values_s;
-            map<string, map<string, map<string, map<string, vector<map<string, vector<string>>>>>>> skips_s = instruction["skips"];
+
+            map<string, map<string, map<string, map<string, vector<map<string, vector<string>>>>>>> skips_s;
+            if(instruction.HasMember("skips") && instruction["skips"].IsObject()){
+                for (Value::ConstMemberIterator it1 = instruction["skips"].MemberBegin(); it1 != instruction["skips"].MemberEnd(); ++it1){
+                    string key2 = it1->name.GetString();
+                    const auto &obj2 = it1->value.GetObject();
+                    for (Value::ConstMemberIterator it2 = obj2.MemberBegin(); it2 != obj2.MemberEnd(); ++it2){
+                        string key3 = it2->name.GetString();
+                        const auto &obj3 = it2->value.GetObject();
+                        for (Value::ConstMemberIterator it3 = obj3.MemberBegin(); it3 != obj3.MemberEnd(); ++it3){
+                            string key4 = it3->name.GetString();
+                            const auto &obj4 = it3->value.GetObject();
+                            for (Value::ConstMemberIterator it4 = obj4.MemberBegin(); it4 != obj4.MemberEnd(); ++it4){
+                                string key5 = it4->name.GetString();
+                                const auto &obj5 = it4->value.GetArray();
+                                int key6 = 0;
+                                for (Value::ConstValueIterator it5 = obj5.Begin(); it5 != obj5.End(); ++it5){
+                                    const auto &obj6 = it5->GetObject();
+                                    for (Value::ConstMemberIterator it6 = obj6.MemberBegin(); it6 != obj6.MemberEnd(); ++it6){
+                                        string key7 = it6->name.GetString();
+                                        const auto &obj7 = it6->value.GetArray();
+                                        for (Value::ConstValueIterator it7 = obj7.Begin(); it7 != obj7.End(); ++it7){
+                                            skips_s[key2][key3][key4][key5][key6][key7].push_back(it7->GetString());
+                                        }
+                                    }
+                                    key6++;
+                                }
+                            }
+                        }   
+                    }
+                }
+            }
+
             c.skips = skips_s;
-            string noten_context_s = instruction["noten_context"];
-            c.noten_context = noten_context_s;
+            if(instruction.HasMember("noten_context")){
+                string noten_context_s = instruction["noten_context"].GetString();
+                c.noten_context = noten_context_s;
+            }
+
             // replace vars in skips
             for (auto &&[skip_k, skip_v] : c.skips)
             {
@@ -1185,7 +1190,7 @@ Php::Value interpreter(Php::Parameters &params)
             }
 
             // create cpp node
-            map<string, condition_t> cs;
+            /*map<string, condition_t> cs;
             for (auto&& [name, condition] : c.conditions)
             {
                 bool entry_opt_flag = false;
@@ -1509,18 +1514,18 @@ Php::Value interpreter(Php::Parameters &params)
                     s.constant = true;
                 }
                 c.cpp.values[key] = s;
-            }
+            }*/
 
             code_block.push_back(c);
         }
         code[i_event_name] = code_block;
     }
-    //return code2string(code);
+    return code2string(code);
 
     vector<event_t> events;
     map<string, vector<int>> eventsOpt;
     events.reserve(3000);
-    for (auto &&[step, event_php] : events_php){
+    /*for (auto &&[step, event_php] : events_json){
         event_t event;
         for (auto &&[k, v] : event_php){
             if(k != "qualifier"){
@@ -1540,7 +1545,7 @@ Php::Value interpreter(Php::Parameters &params)
         event.time = strtotime(event.params["timeStamp"]);
         events.push_back(event);
         eventsOpt[event.params["typeId"]].push_back(step);
-    }
+    }*/
     //return events2string(events);
 
     // type conversions complete / begin query
@@ -1696,19 +1701,45 @@ Php::Value interpreter(Php::Parameters &params)
 
  }
 
-// Symbols are exported according to the "C" language
-extern "C"
-{
-    // export the "get_module" function that will be called by the Zend engine
-    PHPCPP_EXPORT void *get_module()
-    {
-        // create extension
-        static Php::Extension extension("interpreter", "1.0");
+int main(int argc, char** argv){
 
-        // add function, with defined numeric parameters, to extension
-        extension.add<interpreter>("interpreter");
+    /*string c_path = argv[1];
+    string e_path = argv[2];*/
 
-        // return the extension module
-        return extension.module();
-    }
+    FILE* fpc = fopen("code.txt", "rb"); // non-Windows use "r"
+ 
+    char readBufferc[256];
+    FileReadStream bisc(fpc, readBufferc, sizeof(readBufferc));
+ 
+    AutoUTFInputStream<unsigned, FileReadStream> eisc(bisc);  // wraps bis into eis
+ 
+    Document dc;         // Document is GenericDocument<UTF8<> > 
+    dc.ParseStream<0, AutoUTF<unsigned> >(eisc); // This parses any UTF file into UTF-8 in memory
+ 
+    fclose(fpc);
+
+    /*StringBuffer bufferc;
+    Writer<StringBuffer> writerc(bufferc);
+    dc.Accept(writerc);
+    string code = bufferc.GetString();*/
+
+    FILE* fpe = fopen("file.txt", "rb"); // non-Windows use "r"
+ 
+    char readBuffere[256];
+    FileReadStream bise(fpe, readBuffere, sizeof(readBuffere));
+ 
+    AutoUTFInputStream<unsigned, FileReadStream> eise(bise);  // wraps bis into eis
+ 
+    Document de;         // Document is GenericDocument<UTF8<> > 
+    de.ParseStream<0, AutoUTF<unsigned> >(eise); // This parses any UTF file into UTF-8 in memory
+ 
+    fclose(fpe);
+
+    /*StringBuffer buffere;
+    Writer<StringBuffer> writere(buffere);
+    de.Accept(writere);
+    string events = buffere.GetString();*/
+
+    cout << interpreter(dc, de);
 }
+//g++ -O3 -std=c++17 -fopenmp -o test main.cpp
