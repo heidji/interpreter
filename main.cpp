@@ -1722,8 +1722,8 @@ string interpreter(Value &code_json, Value &events_json)
 
 int main(int argc, char** argv){
 
-    string c_path = argv[1];
-    string e_path = argv[2];
+    char* c_path = argv[1];
+    char* e_path = argv[2];
 
     FILE* fpc = fopen(c_path, "rb"); // non-Windows use "r"
  

@@ -16,7 +16,7 @@
             "host": "hossidev.ligainsider.de",
             "port": 22,
             "user": "root",
-            "dir": "/root/PHP-CPP/Examples/EmptyExtension",
+            "dir": "/var/www/ligainsider.de/vhosts/hossi/htdocs/LigaInsider/App/Scripts/interpreter",
             "privateKey": "/Users/hossi/.ssh/test",
             "passphrase": null
         }
