@@ -1146,6 +1146,18 @@ string interpreter(Value &code_json, Value &events_json)
                                         string key7 = it6->name.GetString();
                                         const auto &obj7 = it6->value.GetArray();
                                         for (Value::ConstValueIterator it7 = obj7.Begin(); it7 != obj7.End(); ++it7){
+                                            if(!skips_s.count(key2))
+                                                skips_s[key2] = {};
+                                            if(!skips_s[key2].count(key3))
+                                                skips_s[key2][key3] = {};
+                                            if(!skips_s[key2][key3].count(key4))
+                                                skips_s[key2][key3][key4] = {};
+                                            if(!skips_s[key2][key3][key4].count(key5))
+                                                skips_s[key2][key3][key4][key5] = {};
+                                            if(skips_s[key2][key3][key4][key5].size() < key6+1)
+                                                skips_s[key2][key3][key4][key5].push_back({});
+                                            if(!skips_s[key2][key3][key4][key5][key6].count(key7))
+                                                skips_s[key2][key3][key4][key5][key6][key7] = {};
                                             skips_s[key2][key3][key4][key5][key6][key7].push_back(it7->GetString());
                                         }
                                     }
