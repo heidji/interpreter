@@ -1761,4 +1761,4 @@ int main(int argc, char** argv){
 
     cout << interpreter(dc, de);
 }
-//g++ -O3 -std=c++17 -fopenmp -o test main.cpp
+//g++ -O3 -std=c++17 -fopenmp -o interpreter main.cpp
