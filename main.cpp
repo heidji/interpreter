@@ -17,6 +17,7 @@
 #include "include/rapidjson/stringbuffer.h"
 #include "include/rapidjson/filereadstream.h"
 #include "include/rapidjson/encodedstream.h"
+#include <filesystem>
 
 using namespace rapidjson;
 
@@ -1722,10 +1723,17 @@ string interpreter(Value &code_json, Value &events_json)
 
 int main(int argc, char** argv){
 
-    char* c_path = argv[1];
-    char* e_path = argv[2];
+    string rel_path = "../../../../../stroeercurrent/";
+    char* tc_path = argv[1];
+    char* te_path = argv[2];
 
-    FILE* fpc = fopen(c_path, "rb"); // non-Windows use "r"
+    string str_tc(tc_path);
+    string str_te(te_path);
+
+    string c_path = rel_path + "opta/code/" + str_tc + ".txt";
+    string e_path = rel_path + "opta/events/ligainsider/" + str_te + ".json";
+
+    FILE* fpc = fopen(c_path.c_str(), "rb"); // non-Windows use "r"
  
     char readBufferc[256];
     FileReadStream bisc(fpc, readBufferc, sizeof(readBufferc));
@@ -1742,7 +1750,7 @@ int main(int argc, char** argv){
     dc.Accept(writerc);
     string code = bufferc.GetString();*/
 
-    FILE* fpe = fopen(e_path, "rb"); // non-Windows use "r"
+    FILE* fpe = fopen(e_path.c_str(), "rb"); // non-Windows use "r"
  
     char readBuffere[256];
     FileReadStream bise(fpe, readBuffere, sizeof(readBuffere));
