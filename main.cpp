@@ -1722,10 +1722,10 @@ string interpreter(Value &code_json, Value &events_json)
 
 int main(int argc, char** argv){
 
-    /*string c_path = argv[1];
-    string e_path = argv[2];*/
+    string c_path = argv[1];
+    string e_path = argv[2];
 
-    FILE* fpc = fopen("code.txt", "rb"); // non-Windows use "r"
+    FILE* fpc = fopen(c_path, "rb"); // non-Windows use "r"
  
     char readBufferc[256];
     FileReadStream bisc(fpc, readBufferc, sizeof(readBufferc));
@@ -1742,7 +1742,7 @@ int main(int argc, char** argv){
     dc.Accept(writerc);
     string code = bufferc.GetString();*/
 
-    FILE* fpe = fopen("file.txt", "rb"); // non-Windows use "r"
+    FILE* fpe = fopen(e_path, "rb"); // non-Windows use "r"
  
     char readBuffere[256];
     FileReadStream bise(fpe, readBuffere, sizeof(readBuffere));
