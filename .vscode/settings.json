@@ -20,6 +20,8 @@
         "chrono": "cpp",
         "stdexcept": "cpp",
         "iosfwd": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "map": "cpp",
+        "typeinfo": "cpp"
     }
 }

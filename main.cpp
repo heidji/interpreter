@@ -1202,7 +1202,7 @@ string interpreter(Value &code_json, Value &events_json)
             }
 
             // create cpp node
-            /*map<string, condition_t> cs;
+            map<string, condition_t> cs;
             for (auto&& [name, condition] : c.conditions)
             {
                 bool entry_opt_flag = false;
@@ -1503,7 +1503,7 @@ string interpreter(Value &code_json, Value &events_json)
             }
 
             // values
-            map<string, string> values = instruction["values"];
+            map<string, string> values = c.values;
             for(auto&& [key, value] : values){
                 rule_side_t s;
                 if(!is_numeric(value) && value.find(".") != string::npos){
@@ -1526,29 +1526,35 @@ string interpreter(Value &code_json, Value &events_json)
                     s.constant = true;
                 }
                 c.cpp.values[key] = s;
-            }*/
+            }
 
             code_block.push_back(c);
         }
         code[i_event_name] = code_block;
     }
-    return code2string(code);
+    //return code2string(code);
 
     vector<event_t> events;
     map<string, vector<int>> eventsOpt;
     events.reserve(3000);
-    /*for (auto &&[step, event_php] : events_json){
+    int step = 0;
+    for (Value::ConstValueIterator iter = events_json.Begin(); iter != events_json.End(); ++iter){
         event_t event;
-        for (auto &&[k, v] : event_php){
+        const auto &event_php = iter->GetObject();
+        for (Value::ConstMemberIterator iter2 = event_php.MemberBegin(); iter2 != event_php.MemberEnd(); ++iter2){
+            string k = iter2->name.GetString();
             if(k != "qualifier"){
-                string s = v;
-                event.params[k] = s;
+                event.params[k] = iter2->value.GetString();
             }else{
                 qualifier_t qualifier;
-                for (auto &&[kq, vq] : event_php["qualifier"]){
-                    for (auto &&[kqq, vqq] : vq){
-                        string s = vqq;
-                        qualifier.params[kqq] = s;
+                if(!iter2->value.IsArray())
+                    continue;
+                const auto &vq = iter2->value.GetArray();
+                for (Value::ConstValueIterator iter3 = vq.Begin(); iter3 != vq.End(); ++iter3){
+                    const auto &vqq = iter3->GetObject();
+                    for (Value::ConstMemberIterator iter4 = vqq.MemberBegin(); iter4 != vqq.MemberEnd(); ++iter4){
+                        string kqq = iter4->name.GetString();
+                        qualifier.params[kqq] = iter4->value.GetString();
                     }
                     event.qualifier.push_back(qualifier);
                 }
@@ -1557,7 +1563,8 @@ string interpreter(Value &code_json, Value &events_json)
         event.time = strtotime(event.params["timeStamp"]);
         events.push_back(event);
         eventsOpt[event.params["typeId"]].push_back(step);
-    }*/
+        step++;
+    }
     //return events2string(events);
 
     // type conversions complete / begin query
@@ -1726,7 +1733,7 @@ int main(int argc, char** argv){
     AutoUTFInputStream<unsigned, FileReadStream> eisc(bisc);  // wraps bis into eis
  
     Document dc;         // Document is GenericDocument<UTF8<> > 
-    dc.ParseStream<0, AutoUTF<unsigned> >(eisc); // This parses any UTF file into UTF-8 in memory
+    dc.ParseStream<rapidjson::kParseNumbersAsStringsFlag, AutoUTF<unsigned> >(eisc); // This parses any UTF file into UTF-8 in memory
  
     fclose(fpc);
 
@@ -1743,7 +1750,7 @@ int main(int argc, char** argv){
     AutoUTFInputStream<unsigned, FileReadStream> eise(bise);  // wraps bis into eis
  
     Document de;         // Document is GenericDocument<UTF8<> > 
-    de.ParseStream<0, AutoUTF<unsigned> >(eise); // This parses any UTF file into UTF-8 in memory
+    de.ParseStream<rapidjson::kParseNumbersAsStringsFlag, AutoUTF<unsigned> >(eise); // This parses any UTF file into UTF-8 in memory
  
     fclose(fpe);
 
