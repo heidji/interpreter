@@ -15,8 +15,6 @@
 using namespace std;
 using namespace std::chrono;
 
-vector<vector<string>> debug;
-
 mutex m;
 
 string bool2str(bool x)
@@ -309,7 +307,7 @@ struct instruction_t
     string toString(int c = 0)
     {
         string s;
-        s = k(c) + "primary: " + primary + "\n" + k(c) + "formula: " + formula + "\n" + 
+        s = k(c) + "primary: " + primary + "\n" + k(c) + "formula: " + formula + "\n" +
         k(c) + "noten_context: " + noten_context + "\n" + k(c) + "optTid: " + optTid + "\n" + k(c) + "conditions: {\n";
         for (auto &&[key, v] : conditions)
         {
