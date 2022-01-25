@@ -12,15 +12,7 @@
 #include <map>
 #include <iterator>
 #include "RSJparser.tcc"
-
-#include "include/rapidjson/document.h"
-#include "include/rapidjson/writer.h"
-#include "include/rapidjson/stringbuffer.h"
-#include "include/rapidjson/filereadstream.h"
-#include "include/rapidjson/encodedstream.h"
 #include <filesystem>
-
-using namespace rapidjson;
 
 using namespace std;
 using namespace std::chrono;
@@ -1101,7 +1093,7 @@ string interpreter(RSJresource &code_json, RSJresource &events_json)
     {
         string i_event_name = iter->first;
         vector<instruction_t> code_block;
-        for (SizeType block = 0; block < iter->second.size(); block++) {
+        for (int block = 0; block < iter->second.size(); block++) {
             // get
             struct instruction_t c;
             auto &instruction = iter->second[block];
@@ -1141,12 +1133,12 @@ string interpreter(RSJresource &code_json, RSJresource &events_json)
                                 string key5 = it4->first;
                                 auto &obj5 = it4->second;
                                 int key6 = 0;
-                                for (SizeType it5 = 0; it5 < obj5.as_array().size(); it5++){
+                                for (int it5 = 0; it5 < obj5.as_array().size(); it5++){
                                     auto &obj6 = it4->second[it5];
                                     for (auto it6 = obj6.as_object().begin(); it6 != obj6.as_object().end(); ++it6){
                                         string key7 = it6->first;
                                         auto &obj7 = it6->second;
-                                        for (SizeType it7 = 0; it7 < obj7.as_array().size(); it7++){
+                                        for (int it7 = 0; it7 < obj7.as_array().size(); it7++){
                                             if(!skips_s.count(key2))
                                                 skips_s[key2] = {};
                                             if(!skips_s[key2].count(key3))
@@ -1536,7 +1528,7 @@ string interpreter(RSJresource &code_json, RSJresource &events_json)
     map<string, vector<int>> eventsOpt;
     events.reserve(3000);
     int step = 0;
-    for (SizeType iter = 0; iter < events_json.as_array().size(); iter++){
+    for (int iter = 0; iter < events_json.as_array().size(); iter++){
         event_t event;
         auto &event_php = events_json[iter];
         for (auto iter2 = event_php.as_object().begin(); iter2 != event_php.as_object().end(); ++iter2){
@@ -1546,7 +1538,7 @@ string interpreter(RSJresource &code_json, RSJresource &events_json)
             }else{
                 qualifier_t qualifier;
                 auto &vq = iter2->second;
-                for (SizeType iter3 = 0; iter3 < vq.as_array().size(); iter3++){
+                for (int iter3 = 0; iter3 < vq.as_array().size(); iter3++){
                     auto &vqq = vq[iter3];
                     for (auto iter4 = vqq.as_object().begin(); iter4 != vqq.as_object().end(); ++iter4){
                         string kqq = iter4->first;
