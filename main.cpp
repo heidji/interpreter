@@ -11,6 +11,7 @@
 #include <mutex>
 #include <map>
 #include <iterator>
+#include "RSJparser.tcc"
 
 #include "include/rapidjson/document.h"
 #include "include/rapidjson/writer.h"
@@ -1080,7 +1081,7 @@ void replacePredefinedVar(string &var)
         var = "qualifierId";
 }
 
-string interpreter(Value &code_json, Value &events_json)
+string interpreter(RSJresource &code_json, RSJresource &events_json)
 {
     /*struct event e;
     e.params = {{"k", "l"}, {"k", "l"}};
@@ -1096,57 +1097,56 @@ string interpreter(Value &code_json, Value &events_json)
     // normalize code object
     map<string, vector<instruction_t>> code;
 
-    for (Value::ConstMemberIterator iter = code_json.MemberBegin(); iter != code_json.MemberEnd(); ++iter)
+    for (auto iter = code_json.as_object().begin(); iter != code_json.as_object().end(); ++iter)
     {
-        string i_event_name = iter->name.GetString();
+        string i_event_name = iter->first;
         vector<instruction_t> code_block;
-        for (SizeType block = 0; block < iter->value.Size(); block++) {
+        for (SizeType block = 0; block < iter->second.size(); block++) {
             // get
             struct instruction_t c;
-            const auto &instruction = iter->value[block].GetObject();
+            auto &instruction = iter->second[block];
 
-            if (instruction["primary"].GetString() != "")
+            if (instruction["primary"].as<std::string>() != "")
             {
-                string primary_s = instruction["primary"].GetString();
+                string primary_s = instruction["primary"].as<std::string>();
                 c.primary = primary_s;
             }
 
             map<string, string> conditions_s;
-            for (Value::ConstMemberIterator it1 = instruction["conditions"].MemberBegin(); it1 != instruction["conditions"].MemberEnd(); ++it1){
-                conditions_s[it1->name.GetString()] = it1->value.GetString();
+            for (auto it1 = instruction["conditions"].as_object().begin(); it1 != instruction["conditions"].as_object().end(); ++it1){
+                conditions_s[it1->first] = it1->second.as<std::string>();
             }
             c.conditions = conditions_s;
 
-            string formula_s = instruction["formula"].GetString();
+            string formula_s = instruction["formula"].as<std::string>();
             c.formula = formula_s;
 
             map<string, string> values_s;
-            for (Value::ConstMemberIterator it1 = instruction["values"].MemberBegin(); it1 != instruction["values"].MemberEnd(); ++it1){
-                values_s[it1->name.GetString()] = it1->value.GetString();
+            for (auto it1 = instruction["values"].as_object().begin(); it1 != instruction["values"].as_object().end(); ++it1){
+                values_s[it1->first] = it1->second.as<std::string>();
             }
             c.values = values_s;
 
             map<string, map<string, map<string, map<string, vector<map<string, vector<string>>>>>>> skips_s;
-            if(instruction.HasMember("skips") && instruction["skips"].IsObject()){
-                for (Value::ConstMemberIterator it1 = instruction["skips"].MemberBegin(); it1 != instruction["skips"].MemberEnd(); ++it1){
-                    string key2 = it1->name.GetString();
-                    const auto &obj2 = it1->value.GetObject();
-                    for (Value::ConstMemberIterator it2 = obj2.MemberBegin(); it2 != obj2.MemberEnd(); ++it2){
-                        string key3 = it2->name.GetString();
-                        const auto &obj3 = it2->value.GetObject();
-                        for (Value::ConstMemberIterator it3 = obj3.MemberBegin(); it3 != obj3.MemberEnd(); ++it3){
-                            string key4 = it3->name.GetString();
-                            const auto &obj4 = it3->value.GetObject();
-                            for (Value::ConstMemberIterator it4 = obj4.MemberBegin(); it4 != obj4.MemberEnd(); ++it4){
-                                string key5 = it4->name.GetString();
-                                const auto &obj5 = it4->value.GetArray();
+                for (auto it1 = instruction["skips"].as_object().begin(); it1 != instruction["skips"].as_object().end(); ++it1){
+                    string key2 = it1->first;
+                    auto &obj2 = it1->second;
+                    for (auto it2 = obj2.as_object().begin(); it2 != obj2.as_object().end(); ++it2){
+                        string key3 = it2->first;
+                        auto &obj3 = it2->second;
+                        for (auto it3 = obj3.as_object().begin(); it3 != obj3.as_object().end(); ++it3){
+                            string key4 = it3->first;
+                            auto &obj4 = it3->second;
+                            for (auto it4 = obj4.as_object().begin(); it4 != obj4.as_object().end(); ++it4){
+                                string key5 = it4->first;
+                                auto &obj5 = it4->second;
                                 int key6 = 0;
-                                for (Value::ConstValueIterator it5 = obj5.Begin(); it5 != obj5.End(); ++it5){
-                                    const auto &obj6 = it5->GetObject();
-                                    for (Value::ConstMemberIterator it6 = obj6.MemberBegin(); it6 != obj6.MemberEnd(); ++it6){
-                                        string key7 = it6->name.GetString();
-                                        const auto &obj7 = it6->value.GetArray();
-                                        for (Value::ConstValueIterator it7 = obj7.Begin(); it7 != obj7.End(); ++it7){
+                                for (SizeType it5 = 0; it5 < obj5.as_array().size(); it5++){
+                                    auto &obj6 = it4->second[it5];
+                                    for (auto it6 = obj6.as_object().begin(); it6 != obj6.as_object().end(); ++it6){
+                                        string key7 = it6->first;
+                                        auto &obj7 = it6->second;
+                                        for (SizeType it7 = 0; it7 < obj7.as_array().size(); it7++){
                                             if(!skips_s.count(key2))
                                                 skips_s[key2] = {};
                                             if(!skips_s[key2].count(key3))
@@ -1159,7 +1159,7 @@ string interpreter(Value &code_json, Value &events_json)
                                                 skips_s[key2][key3][key4][key5].push_back({});
                                             if(!skips_s[key2][key3][key4][key5][key6].count(key7))
                                                 skips_s[key2][key3][key4][key5][key6][key7] = {};
-                                            skips_s[key2][key3][key4][key5][key6][key7].push_back(it7->GetString());
+                                            skips_s[key2][key3][key4][key5][key6][key7].push_back(obj7[it7].as<std::string>());
                                         }
                                     }
                                     key6++;
@@ -1168,13 +1168,10 @@ string interpreter(Value &code_json, Value &events_json)
                         }   
                     }
                 }
-            }
 
             c.skips = skips_s;
-            if(instruction.HasMember("noten_context")){
-                string noten_context_s = instruction["noten_context"].GetString();
-                c.noten_context = noten_context_s;
-            }
+            string noten_context_s = instruction["noten_context"].as<std::string>();
+            c.noten_context = noten_context_s;
 
             // replace vars in skips
             for (auto &&[skip_k, skip_v] : c.skips)
@@ -1534,28 +1531,26 @@ string interpreter(Value &code_json, Value &events_json)
         code[i_event_name] = code_block;
     }
     //return code2string(code);
-
+    
     vector<event_t> events;
     map<string, vector<int>> eventsOpt;
     events.reserve(3000);
     int step = 0;
-    for (Value::ConstValueIterator iter = events_json.Begin(); iter != events_json.End(); ++iter){
+    for (SizeType iter = 0; iter < events_json.as_array().size(); iter++){
         event_t event;
-        const auto &event_php = iter->GetObject();
-        for (Value::ConstMemberIterator iter2 = event_php.MemberBegin(); iter2 != event_php.MemberEnd(); ++iter2){
-            string k = iter2->name.GetString();
+        auto &event_php = events_json[iter];
+        for (auto iter2 = event_php.as_object().begin(); iter2 != event_php.as_object().end(); ++iter2){
+            string k = iter2->first;
             if(k != "qualifier"){
-                event.params[k] = iter2->value.GetString();
+                event.params[k] = iter2->second.as<std::string>();
             }else{
                 qualifier_t qualifier;
-                if(!iter2->value.IsArray())
-                    continue;
-                const auto &vq = iter2->value.GetArray();
-                for (Value::ConstValueIterator iter3 = vq.Begin(); iter3 != vq.End(); ++iter3){
-                    const auto &vqq = iter3->GetObject();
-                    for (Value::ConstMemberIterator iter4 = vqq.MemberBegin(); iter4 != vqq.MemberEnd(); ++iter4){
-                        string kqq = iter4->name.GetString();
-                        qualifier.params[kqq] = iter4->value.GetString();
+                auto &vq = iter2->second;
+                for (SizeType iter3 = 0; iter3 < vq.as_array().size(); iter3++){
+                    auto &vqq = vq[iter3];
+                    for (auto iter4 = vqq.as_object().begin(); iter4 != vqq.as_object().end(); ++iter4){
+                        string kqq = iter4->first;
+                        qualifier.params[kqq] = iter4->second.as<std::string>();
                     }
                     event.qualifier.push_back(qualifier);
                 }
@@ -1717,55 +1712,27 @@ string interpreter(Value &code_json, Value &events_json)
               });
 
     return result2json(collection);
-    //return result2phpvalue(collection);
 
  }
 
 int main(int argc, char** argv){
 
-    //string rel_path = "../../../../../stroeercurrent/";
     char* tc_path = argv[1];
     char* te_path = argv[2];
 
-    /*string str_tc(tc_path);
-    string str_te(te_path);
+    std::fstream ct(tc_path);
+    std::stringstream cbuffer;
+    cbuffer << ct.rdbuf();
+    std::string cstr = cbuffer.str();
+    RSJresource dc(cstr);
+    ct.close();
 
-    string c_path = rel_path + "opta/code/" + str_tc + ".txt";
-    string e_path = rel_path + "opta/events/ligainsider/" + str_te + ".json";*/
-
-    FILE* fpc = fopen(/*c_path.c_str()*/tc_path, "rb"); // non-Windows use "r"
- 
-    char readBufferc[256];
-    FileReadStream bisc(fpc, readBufferc, sizeof(readBufferc));
- 
-    AutoUTFInputStream<unsigned, FileReadStream> eisc(bisc);  // wraps bis into eis
- 
-    Document dc;         // Document is GenericDocument<UTF8<> > 
-    dc.ParseStream<rapidjson::kParseNumbersAsStringsFlag, AutoUTF<unsigned> >(eisc); // This parses any UTF file into UTF-8 in memory
- 
-    fclose(fpc);
-
-    /*StringBuffer bufferc;
-    Writer<StringBuffer> writerc(bufferc);
-    dc.Accept(writerc);
-    string code = bufferc.GetString();*/
-
-    FILE* fpe = fopen(/*e_path.c_str()*/te_path, "rb"); // non-Windows use "r"
- 
-    char readBuffere[256];
-    FileReadStream bise(fpe, readBuffere, sizeof(readBuffere));
- 
-    AutoUTFInputStream<unsigned, FileReadStream> eise(bise);  // wraps bis into eis
- 
-    Document de;         // Document is GenericDocument<UTF8<> > 
-    de.ParseStream<rapidjson::kParseNumbersAsStringsFlag, AutoUTF<unsigned> >(eise); // This parses any UTF file into UTF-8 in memory
- 
-    fclose(fpe);
-
-    /*StringBuffer buffere;
-    Writer<StringBuffer> writere(buffere);
-    de.Accept(writere);
-    string events = buffere.GetString();*/
+    std::fstream et(te_path);
+    std::stringstream ebuffer;
+    ebuffer << et.rdbuf();
+    std::string estr = ebuffer.str();
+    RSJresource de(estr);
+    et.close();
 
     cout << interpreter(dc, de);
 }
